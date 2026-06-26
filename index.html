@@ -890,6 +890,7 @@ button, [onclick]:not(input):not(select):not(textarea) { cursor: pointer; }
 <div class="main" id="main"></div>
 
 <script>
+console.log('Dashboard loading...');
 /* ─── NAV ICONS (inline SVG) ─── */
 const NAV_ICONS = {
   overview: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.5"/></svg>`,
@@ -2580,15 +2581,22 @@ function switchTab(tab) {
 })();
 
 /* ─── INIT ─── */
+console.log('Init starting...');
 loadBackgroundSettings();
+console.log('Background loaded');
 if (loadUserData()) {
+  console.log('User data loaded, showing dashboard');
   SEP_EXAM = new Date(USER_SETTINGS.examDate || '2026-09-08T08:00:00');
   switchTab('overview');
 } else {
+  console.log('No user data, showing onboarding');
   MODS = [{id:'DEMO',name:'Demo Module',code:'DEM001',color:'#ffffff',feb:null,apr:null,jun:null,junRaw:null,junTotal:100,junStatus:'pending',breakdown:[],priorities:[]}];
   renderSidebar();
+  console.log('Sidebar rendered');
   showOnboarding();
+  console.log('Onboarding shown');
 }
+console.log('Init complete');
 </script>
 </body>
 </html>
