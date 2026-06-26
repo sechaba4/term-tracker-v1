@@ -1,0 +1,2350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CTA Mark Dashboard — PGDA 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --text: #ffffff;
+  --muted: rgba(255,255,255,0.58);
+  --faint: rgba(255,255,255,0.32);
+  --pass: #4ade80;
+  --fail: #fb7185;
+  --warn: #fbbf24;
+  --accent: #ffffff;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  font-family: Inter, -apple-system, sans-serif;
+  color: var(--text);
+  background: #000000;
+}
+
+body { display: flex; position: relative; }
+
+/* ══════════════════════════════════════════════
+   BACKGROUND — DO MORE. aesthetic
+   Black base + aurora mass (right-side dominant):
+   white/cream center → cyan left → deep blue lower
+   → amber upper-right → orange-red corner
+══════════════════════════════════════════════ */
+#bg-aurora {
+  position: fixed; inset: 0; z-index: 0;
+  background-image: url('./assets/bg-portrait.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Animated color blobs that shift the aurora subtly */
+.b {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: blobFloat 28s ease-in-out infinite;
+}
+.b1 {
+  width: 620px; height: 620px;
+  top: -100px; right: -80px;
+  background: radial-gradient(circle at 40% 40%, rgba(255,255,255,0.025) 0%, transparent 65%);
+  filter: blur(90px);
+  animation-duration: 30s;
+}
+.b2 {
+  width: 580px; height: 580px;
+  top: 30%; right: 5%;
+  background: radial-gradient(circle at 40% 50%, rgba(255,255,255,0.018) 0%, transparent 65%);
+  filter: blur(85px);
+  animation-duration: 36s;
+  animation-delay: -8s;
+}
+.b3 {
+  width: 420px; height: 420px;
+  top: 15%; left: 22%;
+  background: radial-gradient(circle, rgba(255,255,255,0.020) 0%, transparent 65%);
+  filter: blur(80px);
+  animation-duration: 24s;
+  animation-delay: -14s;
+}
+.b4 {
+  width: 340px; height: 340px;
+  top: -60px; right: 60px;
+  background: radial-gradient(circle at 38% 38%, rgba(255,255,255,0.015) 0%, transparent 65%);
+  filter: blur(75px);
+  animation-duration: 32s;
+  animation-delay: -5s;
+}
+.b5 {
+  width: 360px; height: 360px;
+  top: 28%; right: 22%;
+  background: radial-gradient(circle, rgba(255,255,255,0.010) 0%, transparent 62%);
+  filter: blur(100px);
+  animation-duration: 40s;
+  animation-delay: -20s;
+}
+.b6 {
+  width: 450px; height: 450px;
+  bottom: -80px; left: 60px;
+  background: radial-gradient(circle, rgba(255,255,255,0.012) 0%, transparent 65%);
+  filter: blur(90px);
+  animation-duration: 26s;
+  animation-delay: -10s;
+}
+
+@keyframes blobFloat {
+  0%,100% { transform: translate(0,0) scale(1); }
+  25%  { transform: translate(45px,-40px) scale(1.10); }
+  50%  { transform: translate(-30px,55px) scale(0.93); }
+  75%  { transform: translate(40px,28px) scale(1.06); }
+}
+
+/* Film grain */
+#grain {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  opacity: 0.055;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.88' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+/* Grid lines */
+#grid {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
+  background-size: 65px 65px;
+}
+
+/* Cursor spotlight */
+#spotlight {
+  position: fixed;
+  width: 560px; height: 560px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.04) 0%, transparent 70%);
+  pointer-events: none; z-index: 2;
+  transform: translate(-50%,-50%);
+  mix-blend-mode: screen;
+}
+
+/* ══════════════════════════════════════════════
+   LIQUID GLASS
+══════════════════════════════════════════════ */
+.glass {
+  position: relative;
+  background: rgba(0,0,0,0.66);
+  backdrop-filter: blur(36px) saturate(200%) brightness(1.08);
+  -webkit-backdrop-filter: blur(36px) saturate(200%) brightness(1.08);
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-top-color: rgba(255,255,255,0.45);
+  box-shadow:
+    0 20px 60px rgba(0,0,0,0.55),
+    0 4px 16px rgba(0,0,0,0.38),
+    inset 0 1.5px 0 rgba(255,255,255,0.70),
+    inset 0 -1px 0 rgba(0,0,0,0.22),
+    inset 1px 0 0 rgba(255,255,255,0.10),
+    inset -1px 0 0 rgba(255,255,255,0.06);
+  overflow: hidden;
+  z-index: 2;
+  transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.glass::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 46%;
+  pointer-events: none; z-index: 0;
+  border-radius: 20px 20px 60% 60% / 20px 20px 28px 28px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0) 100%);
+}
+
+.glass::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 14px;
+  width: 36%; height: 1.5px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.80), rgba(255,255,255,0.32), transparent);
+  pointer-events: none; z-index: 3;
+}
+
+.glass .shimmer {
+  position: absolute;
+  top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: linear-gradient(45deg, transparent 42%, rgba(255,255,255,0.024) 50%, transparent 58%);
+  animation: glassShimmer 10s infinite linear;
+  pointer-events: none; z-index: 1;
+}
+
+@keyframes glassShimmer {
+  0%   { transform: translateX(-60%) translateY(-60%) rotate(45deg); }
+  100% { transform: translateX(60%)  translateY(60%)  rotate(45deg); }
+}
+
+.glass.lift:hover {
+  transform: translateY(-5px);
+  box-shadow:
+    0 32px 80px rgba(0,0,0,0.70),
+    0 8px 24px rgba(0,0,0,0.50),
+    inset 0 1.5px 0 rgba(255,255,255,0.75),
+    inset 0 -1px 0 rgba(0,0,0,0.28);
+  border-top-color: rgba(255,255,255,0.55);
+}
+
+.glass > * { position: relative; z-index: 2; }
+
+/* ══════════════════════════════════════════════
+   SIDEBAR
+══════════════════════════════════════════════ */
+.sidebar {
+  width: 232px; flex-shrink: 0;
+  position: relative; z-index: 20;
+  height: 100vh; padding: 1.5rem 0.9rem;
+  overflow-y: auto; display: flex; flex-direction: column;
+  background: linear-gradient(170deg, rgba(0,5,22,0.72) 0%, rgba(0,3,12,0.82) 100%);
+  backdrop-filter: blur(80px) saturate(150%);
+  -webkit-backdrop-filter: blur(80px) saturate(150%);
+  border-right: 1px solid rgba(255,255,255,0.11);
+  box-shadow: inset -1px 0 0 rgba(255,255,255,0.05), 3px 0 40px rgba(0,0,0,0.6);
+}
+.sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent);
+}
+
+.logo {
+  display: flex; align-items: center; gap: 0.72rem;
+  margin-bottom: 1.85rem; padding: 0.3rem 0.45rem;
+}
+.logo-icon {
+  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.30);
+  box-shadow: 0 0 24px rgba(210,130,20,0.42), inset 0 1.5px 0 rgba(255,255,255,0.50), inset 0 -1px 0 rgba(0,0,0,0.22);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; font-weight: 900; color: #fff; letter-spacing: -0.01em;
+  position: relative; overflow: hidden;
+}
+.logo-icon::after {
+  content: '';
+  position: absolute; top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.12) 50%, transparent 60%);
+  animation: shimmer 4s infinite;
+}
+@keyframes shimmer {
+  0%   { transform: translateX(-100%) rotate(45deg); }
+  100% { transform: translateX(100%) rotate(45deg); }
+}
+.logo-name { font-size: 0.9rem; font-weight: 800; display: block; letter-spacing: -0.01em; }
+.logo-sub  { font-size: 0.57rem; color: var(--faint); display: block; margin-top: 0.06rem; letter-spacing: 0.04em; }
+
+.nav-sec {
+  font-size: 0.52rem; font-weight: 700;
+  color: rgba(255,255,255,0.22); text-transform: uppercase;
+  letter-spacing: 0.16em; margin: 1.1rem 0 0.38rem 0.6rem;
+}
+
+.nav-btn {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.58rem 0.78rem; border-radius: 12px;
+  border: 1px solid transparent; cursor: pointer;
+  background: transparent; color: var(--muted);
+  font-family: inherit; font-size: 0.8rem; font-weight: 500;
+  text-align: left; width: 100%; margin-bottom: 0.1rem;
+  transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+  position: relative; overflow: hidden;
+}
+.nav-btn::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent);
+  opacity: 0; transition: opacity 0.25s;
+}
+.nav-btn:hover {
+  background: rgba(255,255,255,0.065);
+  border-color: rgba(255,255,255,0.11);
+  color: #fff;
+  transform: translateX(3px);
+}
+.nav-btn:hover::before { opacity: 1; }
+.nav-btn.active {
+  background: linear-gradient(145deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.055) 100%);
+  backdrop-filter: blur(24px);
+  border-color: rgba(255,255,255,0.26);
+  border-top-color: rgba(255,255,255,0.46);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.3), inset 0 1.5px 0 rgba(255,255,255,0.50), inset 0 -1px 0 rgba(0,0,0,0.18);
+  color: #fff; font-weight: 600;
+}
+.nav-btn.active::after {
+  content: '';
+  position: absolute; left: 0; top: 18%; bottom: 18%;
+  width: 2.5px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.3));
+  border-radius: 0 3px 3px 0;
+}
+
+.nav-icon {
+  font-size: 0.7rem; flex-shrink: 0; width: 17px; text-align: center;
+  color: rgba(255,255,255,0.38);
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+
+.mod-badge {
+  margin-left: auto; font-size: 0.58rem; font-weight: 700;
+  padding: 0.13rem 0.42rem; border-radius: 20px;
+  font-family: var(--mono);
+}
+
+.nav-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+  margin: 0.65rem 0;
+}
+
+.sb-footer { margin-top: auto; padding-top: 0.9rem; border-top: 1px solid rgba(255,255,255,0.07); }
+.sb-stat {
+  padding: 0.85rem 0.95rem; border-radius: 14px; margin-top: 0.75rem;
+  background: linear-gradient(145deg, rgba(74,222,128,0.11) 0%, rgba(74,222,128,0.03) 100%);
+  border: 1px solid rgba(74,222,128,0.24);
+  border-top-color: rgba(74,222,128,0.42);
+  box-shadow: inset 0 1.5px 0 rgba(74,222,128,0.20);
+  position: relative; overflow: hidden;
+}
+.sb-stat::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(74,222,128,0.42), transparent);
+}
+.sb-stat-t { font-size: 0.7rem; font-weight: 700; color: #86efac; display: block; margin-bottom: 0.18rem; }
+.sb-stat-s { font-size: 0.58rem; color: var(--muted); display: block; }
+
+/* ══════════════════════════════════════════════
+   MAIN CONTENT
+══════════════════════════════════════════════ */
+.main { flex: 1; overflow-y: auto; height: 100vh; position: relative; z-index: 1; }
+.page { padding: 2rem; }
+
+/* ══════════════════════════════════════════════
+   PAGE HEADER
+══════════════════════════════════════════════ */
+.ph { margin-bottom: 1.75rem; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.08); position: relative; }
+.ph::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent);
+}
+.ph-sup {
+  font-size: 0.6rem; font-weight: 700; color: var(--accent);
+  text-transform: uppercase; letter-spacing: 0.12em;
+  display: block; margin-bottom: 0.3rem;
+}
+.ph-h1 {
+  font-size: 2.2rem; font-weight: 900; letter-spacing: -0.04em; line-height: 1.06;
+  margin-bottom: 0.32rem;
+  background: #ffffff;
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.ph-sub { font-size: 0.74rem; color: var(--muted); }
+
+.slabel {
+  font-size: 0.6rem; font-weight: 700; color: rgba(255,255,255,0.28);
+  text-transform: uppercase; letter-spacing: 0.11em; margin-bottom: 0.82rem;
+}
+
+/* ══════════════════════════════════════════════
+   COUNTDOWN
+══════════════════════════════════════════════ */
+.countdown { display: flex; gap: 0.75rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.cd-item {
+  padding: 1.1rem 1.4rem; text-align: center; min-width: 100px;
+  border-radius: 18px; flex: 1;
+  background: linear-gradient(145deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.025) 100%);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-top-color: rgba(255,255,255,0.38);
+  box-shadow: inset 0 1.5px 0 rgba(255,255,255,0.30), 0 10px 30px rgba(0,0,0,0.45);
+}
+.cd-val {
+  font-family: var(--mono);
+  font-size: 2.1rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1;
+  background: linear-gradient(180deg, #fff 0%, rgba(255,255,255,0.52) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.cd-label {
+  font-size: 0.52rem; text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--faint); font-weight: 700; margin-top: 0.45rem;
+}
+.cd-sup {
+  font-size: 0.6rem; font-weight: 600; color: var(--muted);
+  display: block; margin-bottom: 0.6rem;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+/* ══════════════════════════════════════════════
+   STAT CARDS
+══════════════════════════════════════════════ */
+.a-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 0.82rem; margin-bottom: 1.4rem; }
+.a-card { padding: 1.3rem; }
+.a-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.72rem; }
+.a-label { font-size: 0.56rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.a-icon {
+  width: 26px; height: 26px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.6rem; font-weight: 800; letter-spacing: -0.03em;
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-top-color: rgba(255,255,255,0.38);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), 0 2px 8px rgba(0,0,0,0.3);
+  color: rgba(255,255,255,0.55);
+}
+.a-val { font-size: 1.95rem; font-weight: 900; letter-spacing: -0.03em; line-height: 1; margin-bottom: 0.18rem; font-family: var(--mono); }
+.a-sub { font-size: 0.57rem; color: var(--faint); }
+
+/* ══════════════════════════════════════════════
+   TWO-COL
+══════════════════════════════════════════════ */
+.two-col { display: grid; grid-template-columns: 1.6fr 1fr; gap: 0.82rem; margin-bottom: 1.4rem; }
+.chart-card { padding: 1.5rem; }
+.chart-legend { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.88rem; padding-top: 0.7rem; border-top: 1px solid rgba(255,255,255,0.09); }
+.l-item { display: flex; align-items: center; gap: 0.35rem; font-size: 0.6rem; color: var(--muted); }
+.l-dot  { width: 10px; height: 10px; border-radius: 3px; }
+
+.mini-mod { padding: 1rem 1.1rem; cursor: pointer; transition: all 0.25s cubic-bezier(0.4,0,0.2,1); }
+.mini-mod:hover {
+  transform: translateY(-4px);
+  background: linear-gradient(145deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.06) 100%);
+  box-shadow: 0 28px 60px rgba(0,0,0,0.65), inset 0 1.5px 0 rgba(255,255,255,0.70);
+}
+
+/* ══════════════════════════════════════════════
+   PROGRESS BAR
+══════════════════════════════════════════════ */
+.pbar { border-radius: 99px; overflow: hidden; background: rgba(255,255,255,0.09); }
+.pbar-fill { height: 100%; border-radius: 99px; transition: width 0.5s cubic-bezier(0.4,0,0.2,1); }
+
+/* ══════════════════════════════════════════════
+   PILL
+══════════════════════════════════════════════ */
+.pill {
+  display: inline-block; border-radius: 8px;
+  padding: 0.17rem 0.52rem; font-size: 0.55rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+  font-family: var(--mono);
+}
+
+/* ══════════════════════════════════════════════
+   MODULE DETAIL
+══════════════════════════════════════════════ */
+.m-header-glass { padding: 1.6rem; margin-bottom: 1rem; }
+.m-chip {
+  flex: 1; border-radius: 12px; padding: 0.65rem 0.4rem; text-align: center;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-top-color: rgba(255,255,255,0.32);
+  box-shadow: inset 0 1.5px 0 rgba(255,255,255,0.28), 0 4px 12px rgba(0,0,0,0.25);
+}
+.m-chip-id  { font-size: 0.5rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; display: block; margin-bottom: 0.08rem; }
+.m-chip-val { font-size: 0.9rem; font-weight: 800; display: block; font-family: var(--mono); }
+.m-chip-w   { font-size: 0.44rem; color: var(--faint); display: block; margin-top: 0.05rem; }
+
+.m-stat {
+  flex: 1; padding: 0.72rem 0.88rem; border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-top-color: rgba(255,255,255,0.26);
+  box-shadow: inset 0 1.5px 0 rgba(255,255,255,0.22), 0 4px 12px rgba(0,0,0,0.2);
+}
+.m-stat-l { font-size: 0.56rem; color: var(--muted); margin-bottom: 0.2rem; }
+.m-stat-v { font-size: 1.05rem; font-weight: 800; font-family: var(--mono); }
+
+.bd-wrap { padding: 1.5rem; }
+.bd-item { padding-bottom: 0.72rem; margin-bottom: 0.72rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.bd-item:last-child { border: none; margin: 0; padding: 0; }
+.bd-row   { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.2rem; }
+.bd-q     { font-size: 0.62rem; font-weight: 600; flex: 1; padding-right: 0.5rem; }
+.bd-score { font-size: 0.74rem; font-weight: 800; white-space: nowrap; font-family: var(--mono); }
+.bd-note  { font-size: 0.58rem; color: var(--muted); line-height: 1.55; margin-top: 0.2rem; }
+
+.pr-wrap { padding: 1.5rem; }
+.pr-item {
+  display: flex; gap: 0.5rem; margin-bottom: 0.75rem;
+  align-items: flex-start; padding: 0.82rem; border-radius: 12px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.11);
+  border-top-color: rgba(255,255,255,0.24);
+  box-shadow: inset 0 1.5px 0 rgba(255,255,255,0.18), 0 4px 12px rgba(0,0,0,0.15);
+  transition: all 0.22s ease;
+}
+.pr-item:hover { transform: translateX(3px); background: rgba(255,255,255,0.075); }
+.pr-num  { font-size: 0.58rem; font-weight: 800; border-radius: 6px; padding: 0.14rem 0.42rem; flex-shrink: 0; margin-top: 0.05rem; font-family: var(--mono); }
+.pr-text { font-size: 0.63rem; color: var(--muted); line-height: 1.6; }
+
+/* ══════════════════════════════════════════════
+   SEP PLANNER
+══════════════════════════════════════════════ */
+.sep-wrap { max-width: 600px; margin: 0 auto; }
+.sep-card { padding: 1.75rem; }
+
+.sep-input {
+  border-radius: 18px; padding: 1.4rem; margin-bottom: 1.1rem;
+  background: linear-gradient(145deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.06) 100%);
+  border: 1px solid rgba(255,255,255,0.24);
+  border-top-color: rgba(255,255,255,0.44);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255,255,255,0.34),
+    inset 0 -1px 0 rgba(0,0,0,0.2),
+    0 10px 28px rgba(150,80,8,0.18);
+  position: relative; overflow: hidden;
+}
+.sep-input::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.52), transparent);
+}
+.sep-if   { font-size: 0.62rem; font-weight: 700; color: #ffffff; text-transform: uppercase; letter-spacing: 0.09em; display: block; margin-bottom: 0.06rem; }
+.sep-num  {
+  font-size: 3.4rem; font-weight: 900; color: #fdf5e0;
+  letter-spacing: -0.05em; line-height: 1.05; display: block;
+  font-family: var(--mono);
+  text-shadow: 0 0 32px rgba(255,255,255,0.5);
+}
+.sep-then { font-size: 0.67rem; color: rgba(255,255,255,0.52); display: block; margin: 0.28rem 0 0.72rem; }
+
+input[type="range"].sep-slider {
+  width: 100%; height: 7px; outline: none;
+  -webkit-appearance: none; cursor: pointer;
+  background: linear-gradient(90deg, rgba(255,255,255,0.11), rgba(255,255,255,0.055));
+  border-radius: 99px;
+  border: 1px solid rgba(255,255,255,0.11);
+}
+input[type="range"].sep-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, #fff, rgba(255,255,255,0.82));
+  border-radius: 50%; cursor: pointer;
+  box-shadow: 0 0 28px rgba(255,255,255,0.5), 0 0 55px rgba(255,255,255,0.18), inset 0 1px 0 rgba(255,255,255,0.8);
+  border: 1.5px solid rgba(255,255,255,0.28);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+input[type="range"].sep-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.22);
+  box-shadow: 0 0 40px rgba(255,255,255,0.7), 0 0 70px rgba(255,255,255,0.25);
+}
+.sep-ticks { display: flex; justify-content: space-between; font-size: 0.5rem; color: rgba(255,255,255,0.32); margin-top: 0.2rem; font-family: var(--mono); }
+
+.sep-results { display: flex; flex-direction: column; gap: 0.52rem; }
+.sep-r {
+  border-radius: 12px; padding: 0.82rem 0.95rem;
+  background: rgba(255,255,255,0.048);
+  border: 1px solid rgba(255,255,255,0.11);
+  border-top-color: rgba(255,255,255,0.24);
+  box-shadow: inset 0 1.5px 0 rgba(255,255,255,0.18);
+  transition: all 0.3s ease;
+}
+.sep-r.clears {
+  background: linear-gradient(145deg, rgba(74,222,128,0.12) 0%, rgba(22,163,74,0.04) 100%);
+  border-color: rgba(74,222,128,0.24);
+  border-top-color: rgba(74,222,128,0.44);
+  box-shadow: inset 0 1.5px 0 rgba(74,222,128,0.28), 0 0 16px rgba(74,222,128,0.06);
+}
+.sep-r-head   { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.32rem; }
+.sep-r-left   { display: flex; align-items: center; gap: 0.45rem; }
+.sep-r-id     { font-size: 0.72rem; font-weight: 700; font-family: var(--mono); }
+.sep-r-sub    { font-size: 0.57rem; color: var(--faint); }
+.sep-r-ym     { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em; font-family: var(--mono); }
+.sep-r-status { font-size: 0.56rem; margin-top: 0.26rem; }
+
+/* ══════════════════════════════════════════════
+   INSIGHTS
+══════════════════════════════════════════════ */
+.insights { display: flex; flex-direction: column; gap: 0.8rem; }
+.insight {
+  display: flex; gap: 0.85rem; align-items: flex-start;
+  padding: 1.1rem 1.25rem;
+  border-radius: 0 20px 20px 0;
+  border-left-width: 3px; border-left-style: solid;
+  background: linear-gradient(145deg, rgba(255,255,255,0.085) 0%, rgba(255,255,255,0.03) 100%);
+  backdrop-filter: blur(52px) saturate(180%);
+  -webkit-backdrop-filter: blur(52px) saturate(180%);
+  border-right: 1px solid rgba(255,255,255,0.12);
+  border-top: 1px solid rgba(255,255,255,0.18);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 14px 38px rgba(0,0,0,0.5), inset 0 1.5px 0 rgba(255,255,255,0.25);
+  position: relative; overflow: hidden;
+  transition: transform 0.25s ease;
+}
+.insight:hover { transform: translateX(4px); }
+.insight::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 40%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.055) 0%, transparent 100%);
+  pointer-events: none;
+}
+.insight::after {
+  content: '';
+  position: absolute; top: 0; left: 10px; width: 34%; height: 1.5px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent);
+  pointer-events: none;
+}
+.insight-marker {
+  width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0; margin-top: 0.05rem;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.58rem; font-weight: 900; letter-spacing: -0.02em;
+  position: relative; z-index: 2;
+  border: 1px solid rgba(255,255,255,0.2);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);
+}
+.insight-text { font-size: 0.71rem; color: rgba(255,255,255,0.70); line-height: 1.75; position: relative; z-index: 2; }
+
+/* ══════════════════════════════════════════════
+   GRADER
+══════════════════════════════════════════════ */
+.grader-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
+.g-form { padding: 1.5rem; }
+.g-group { margin-bottom: 0.85rem; }
+.g-label { font-size: 0.67rem; font-weight: 600; display: block; margin-bottom: 0.38rem; }
+.g-label .opt { font-weight: 400; color: var(--faint); }
+.g-input, .g-select, .g-ta {
+  width: 100%; padding: 0.62rem 0.82rem;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.13);
+  border-top-color: rgba(255,255,255,0.26);
+  border-radius: 10px; color: #fff;
+  font-family: inherit; font-size: 0.78rem; outline: none;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.09);
+  transition: all 0.2s;
+}
+.g-input:focus, .g-select:focus, .g-ta:focus {
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.38);
+  border-top-color: rgba(255,255,255,0.58);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.14), inset 0 1px 0 rgba(255,255,255,0.16);
+}
+.g-ta { resize: vertical; line-height: 1.6; }
+.g-select option { background: #030610; }
+.g-btn {
+  width: 100%; padding: 0.82rem;
+  background: rgba(255,255,255,0.92);
+  border: 1px solid rgba(255,255,255,0.9);
+  border-top-color: rgba(255,255,255,1);
+  border-radius: 12px; color: #000;
+  font-family: inherit; font-size: 0.83rem; font-weight: 700; cursor: pointer;
+  box-shadow: 0 8px 28px rgba(255,255,255,0.38), inset 0 1.5px 0 rgba(255,255,255,0.42), inset 0 -1px 0 rgba(0,0,0,0.2);
+  transition: all 0.22s; letter-spacing: 0.01em;
+}
+.g-btn:hover { box-shadow: 0 12px 38px rgba(255,255,255,0.55), inset 0 1.5px 0 rgba(255,255,255,0.50); transform: translateY(-2px); }
+.g-btn:disabled { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.1); color: var(--muted); cursor: not-allowed; box-shadow: none; transform: none; }
+.g-err  { font-size: 0.67rem; color: #fb7185; margin-bottom: 0.72rem; }
+.api-note {
+  padding: 0.65rem 0.85rem; margin-bottom: 0.85rem; font-size: 0.62rem; color: #fde68a; line-height: 1.55;
+  background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.20);
+  border-top-color: rgba(251,191,36,0.32); box-shadow: inset 0 1px 0 rgba(251,191,36,0.14); border-radius: 10px;
+}
+.r-empty { padding: 3.5rem; text-align: center; }
+.r-empty-icon { font-size: 1.4rem; font-weight: 200; color: rgba(255,255,255,0.2); display: block; margin-bottom: 0.6rem; letter-spacing: 0.1em; }
+.r-empty-t { font-size: 0.8rem; font-weight: 600; color: var(--muted); display: block; margin-bottom: 0.28rem; }
+.r-empty-s { font-size: 0.68rem; color: var(--faint); display: block; }
+.r-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.9rem; border-bottom: 1px solid rgba(255,255,255,0.1); }
+.r-score  { font-size: 2.2rem; font-weight: 900; letter-spacing: -0.03em; line-height: 1; display: block; margin-bottom: 0.08rem; font-family: var(--mono); }
+.r-pct    { font-size: 0.68rem; color: var(--muted); display: block; }
+.r-item   { display: grid; grid-template-columns: 1fr auto; gap: 0.38rem 0.6rem; align-items: start; padding: 0.52rem 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.r-crit   { font-size: 0.65rem; font-weight: 600; margin-bottom: 0.12rem; }
+.r-comment { font-size: 0.59rem; color: var(--muted); line-height: 1.5; }
+.r-item-score { font-size: 0.82rem; font-weight: 800; white-space: nowrap; font-family: var(--mono); }
+.r-summary { background: rgba(255,255,255,0.05); border-radius: 9px; padding: 0.78rem; margin: 0.88rem 0 0.75rem; border: 1px solid rgba(255,255,255,0.1); font-size: 0.63rem; color: var(--muted); line-height: 1.6; }
+.r-fixes-t { font-size: 0.63rem; font-weight: 700; margin-bottom: 0.4rem; }
+.r-fix    { display: flex; gap: 0.4rem; margin-bottom: 0.28rem; }
+.r-fix-arr { font-size: 0.63rem; font-weight: 700; color: #fb7185; flex-shrink: 0; margin-top: 0.1rem; }
+.r-fix-txt { font-size: 0.6rem; color: var(--muted); line-height: 1.5; }
+
+/* ══════════════════════════════════════════════
+   INTRO / LANDING ANIMATIONS
+══════════════════════════════════════════════ */
+@keyframes introLogoIn {
+  from { opacity:0; transform:scale(0.35) translateY(24px); }
+  to   { opacity:1; transform:scale(1)    translateY(0);    }
+}
+@keyframes introSlideUp {
+  from { opacity:0; transform:translateY(32px); }
+  to   { opacity:1; transform:translateY(0);    }
+}
+@keyframes introFadeIn {
+  from { opacity:0; }
+  to   { opacity:1; }
+}
+@keyframes introPulse {
+  0%,100% { box-shadow:0 0 40px rgba(255,255,255,0.42),0 20px 60px rgba(0,0,0,0.65),inset 0 2px 0 rgba(255,255,255,0.50); }
+  50%     { box-shadow:0 0 70px rgba(255,255,255,0.72),0 24px 70px rgba(0,0,0,0.70),inset 0 2px 0 rgba(255,255,255,0.55); }
+}
+@keyframes introBtnPulse {
+  0%,100% { box-shadow:0 8px 32px rgba(255,255,255,0.42),inset 0 1.5px 0 rgba(255,255,255,0.42),0 0 0 0 rgba(255,255,255,0.45); }
+  50%     { box-shadow:0 8px 32px rgba(255,255,255,0.42),inset 0 1.5px 0 rgba(255,255,255,0.42),0 0 0 14px rgba(255,255,255,0); }
+}
+@keyframes introLineGrow {
+  from { width:0; opacity:0; }
+  to   { width:140px; opacity:1; }
+}
+@keyframes introSpineShimmer {
+  0%   { background-position:0% 0%; }
+  100% { background-position:0% 200%; }
+}
+
+/* ══════════════════════════════════════════════
+   REDUCED MOTION
+══════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   FOCUS RING — keyboard nav
+══════════════════════════════════════════════ */
+:focus-visible {
+  outline: 2px solid rgba(255,255,255,0.75);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ══════════════════════════════════════════════
+   CURSOR & INTERACTIVE
+══════════════════════════════════════════════ */
+button, [onclick]:not(input):not(select):not(textarea) { cursor: pointer; }
+.glass.lift { cursor: default; }
+.mini-mod   { cursor: pointer; }
+
+/* ══════════════════════════════════════════════
+   PAGE TRANSITION
+══════════════════════════════════════════════ */
+.page {
+  animation: pageFadeIn 0.22s cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
+/* ══════════════════════════════════════════════
+   IMPROVED NAV ICONS (SVG)
+══════════════════════════════════════════════ */
+.nav-icon svg {
+  width: 14px; height: 14px;
+  opacity: 0.4;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+  display: block;
+}
+.nav-btn:hover .nav-icon svg,
+.nav-btn.active .nav-icon svg { opacity: 0.9; }
+
+/* ══════════════════════════════════════════════
+   IMPROVED STAT CARD HOVER
+══════════════════════════════════════════════ */
+.a-card {
+  cursor: default;
+  transition: transform 0.28s cubic-bezier(0.4,0,0.2,1), box-shadow 0.28s ease, border-color 0.28s ease;
+}
+.a-card.lift:hover { transform: translateY(-4px); }
+
+/* ══════════════════════════════════════════════
+   MINI COUNTDOWN GLOW PATCH
+══════════════════════════════════════════════ */
+.cd-item { position: relative; }
+.cd-item::after {
+  content: '';
+  position: absolute;
+  inset: 0; border-radius: 18px;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.055) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ══════════════════════════════════════════════
+   SCROLLBAR
+══════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════
+     INTRO / LANDING OVERLAY
+     ════════════════════════════════════════════ -->
+<div id="intro-overlay" style="position:fixed;inset:0;z-index:9998;overflow:hidden;">
+
+  <!-- Shared aurora background -->
+  <div style="position:absolute;inset:0;background-image:url('./assets/bg-portrait.jpg');background-size:cover;background-position:center;z-index:0"></div>
+  <div class="b b1" style="z-index:1"></div>
+  <div class="b b2" style="z-index:1"></div>
+  <div class="b b3" style="z-index:1"></div>
+  <div class="b b4" style="z-index:1"></div>
+  <div class="b b5" style="z-index:1"></div>
+  <div class="b b6" style="z-index:1"></div>
+  <div style="position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0.055;background-image:url(&quot;data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.88' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E&quot;);background-size:180px 180px"></div>
+  <div style="position:absolute;inset:0;z-index:2;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,0.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.018) 1px,transparent 1px);background-size:65px 65px"></div>
+
+  <!-- Centre content -->
+  <div style="position:relative;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:2rem">
+
+    <!-- Logo badge -->
+    <div style="opacity:0;animation:introLogoIn 0.95s 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;margin-bottom:1.6rem">
+      <div style="width:84px;height:84px;background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.22);border-radius:22px;display:flex;align-items:center;justify-content:center;font-size:1.05rem;font-weight:900;color:#fff;letter-spacing:-0.02em;font-family:Inter,sans-serif;animation:introPulse 2.8s 1.6s ease-in-out infinite;box-shadow:0 0 50px rgba(255,255,255,0.12),0 20px 60px rgba(0,0,0,0.65),inset 0 2px 0 rgba(255,255,255,0.40),inset 0 -1px 0 rgba(0,0,0,0.28);margin:0 auto;position:relative;overflow:hidden">
+        CTA
+        <div style="position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:linear-gradient(45deg,transparent 40%,rgba(255,255,255,0.12) 50%,transparent 60%);animation:shimmer 3s 1.8s infinite"></div>
+      </div>
+    </div>
+
+    <!-- Decorative divider line -->
+    <div style="opacity:0;height:1px;margin:0 auto 1.4rem;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.65),transparent);animation:introLineGrow 0.9s 1.15s cubic-bezier(0.4,0,0.2,1) forwards;width:0"></div>
+
+    <!-- Programme tag -->
+    <div style="opacity:0;animation:introFadeIn 0.6s 1.3s ease forwards;font-size:0.6rem;font-weight:700;color:rgba(255,255,255,0.72);text-transform:uppercase;letter-spacing:0.2em;margin-bottom:0.9rem">
+      CTA &nbsp;·&nbsp; PGDA 2026
+    </div>
+
+    <!-- Main title -->
+    <h1 style="opacity:0;animation:introSlideUp 0.85s 1.6s cubic-bezier(0.4,0,0.2,1) forwards;font-size:clamp(2.4rem,5.5vw,4.2rem);font-weight:900;letter-spacing:-0.045em;line-height:1.0;background:linear-gradient(140deg,#fff 38%,rgba(255,255,255,0.72));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:0 0 0.7rem;font-family:Inter,sans-serif">
+      Marks Dashboard
+    </h1>
+
+    <!-- Subtitle -->
+    <p style="opacity:0;animation:introFadeIn 0.7s 2.15s ease forwards;font-size:0.88rem;color:rgba(255,255,255,0.42);margin:0 0 2.4rem;max-width:360px;line-height:1.65;font-family:Inter,sans-serif">
+      Track your academic performance across all four modules.<br>All data stays private on your device.
+    </p>
+
+    <!-- Stat pills -->
+    <div style="opacity:0;animation:introFadeIn 0.65s 2.5s ease forwards;display:flex;gap:0.7rem;margin-bottom:2.8rem;flex-wrap:wrap;justify-content:center">
+      <span style="padding:0.38rem 0.88rem;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.16);border-top-color:rgba(255,255,255,0.32);border-radius:20px;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.58);letter-spacing:0.05em;box-shadow:inset 0 1px 0 rgba(255,255,255,0.14);font-family:Inter,sans-serif">4 Modules</span>
+      <span style="padding:0.38rem 0.88rem;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.28);border-top-color:rgba(255,255,255,0.48);border-radius:20px;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.82);letter-spacing:0.05em;box-shadow:inset 0 1px 0 rgba(255,255,255,0.2);font-family:Inter,sans-serif">Sep · Oct 2026</span>
+      <span style="padding:0.38rem 0.88rem;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.16);border-top-color:rgba(255,255,255,0.32);border-radius:20px;font-size:0.58rem;font-weight:700;color:rgba(255,255,255,0.58);letter-spacing:0.05em;box-shadow:inset 0 1px 0 rgba(255,255,255,0.14);font-family:Inter,sans-serif">100% Private</span>
+    </div>
+
+    <!-- Enter button -->
+    <button onclick="openDashboard()" style="opacity:0;animation:introFadeIn 0.75s 2.95s ease forwards,introBtnPulse 2.2s 3.6s ease-in-out infinite;padding:0.92rem 2.6rem;background:#ffffff;border:1px solid rgba(255,255,255,0.9);border-radius:14px;color:#000;font-family:Inter,sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;letter-spacing:0.02em;box-shadow:0 8px 32px rgba(255,255,255,0.18),inset 0 1.5px 0 rgba(255,255,255,1);transition:transform 0.22s cubic-bezier(0.4,0,0.2,1),box-shadow 0.22s"
+      onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 16px 44px rgba(255,255,255,0.28)'"
+      onmouseout="this.style.transform='';this.style.boxShadow='0 8px 32px rgba(255,255,255,0.18)'">
+      Open Dashboard &nbsp;&nbsp;→
+    </button>
+
+    <!-- Auto-countdown hint -->
+    <div style="opacity:0;animation:introFadeIn 0.5s 3.6s ease forwards;font-size:0.52rem;color:rgba(255,255,255,0.2);margin-top:1.4rem;font-family:'JetBrains Mono',monospace;letter-spacing:0.04em">
+      auto-opens in <span id="intro-countdown">6</span>s &nbsp;·&nbsp; click anywhere to skip
+    </div>
+  </div>
+
+  <!-- ── Book-cover curtain panels ── -->
+  <!-- Left panel -->
+  <div id="curtain-l" style="position:absolute;left:0;top:0;width:50%;height:100%;z-index:8;will-change:transform;transition:transform 1.38s cubic-bezier(0.77,0,0.175,1);transform-origin:left center;background:linear-gradient(100deg,#000308 0%,#010818 100%)">
+    <!-- Gold spine (right edge) -->
+    <div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,transparent 4%,rgba(255,255,255,0.15) 20%,rgba(255,255,255,0.65) 45%,rgba(255,255,255,0.75) 50%,rgba(255,255,255,0.65) 55%,rgba(255,255,255,0.15) 80%,transparent 96%)"></div>
+    <div style="position:absolute;right:3px;top:0;bottom:0;width:1px;background:linear-gradient(180deg,transparent 10%,rgba(255,255,255,0.07) 50%,transparent 90%)"></div>
+    <!-- Subtle page texture lines -->
+    <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 28px,rgba(255,255,255,0.012) 28px,rgba(255,255,255,0.012) 29px);pointer-events:none"></div>
+    <!-- Corner emboss -->
+    <div style="position:absolute;top:2rem;left:2rem;right:3rem;height:1px;background:linear-gradient(90deg,rgba(255,255,255,0.04),transparent)"></div>
+    <div style="position:absolute;bottom:2rem;left:2rem;right:3rem;height:1px;background:linear-gradient(90deg,rgba(255,255,255,0.04),transparent)"></div>
+  </div>
+
+  <!-- Right panel -->
+  <div id="curtain-r" style="position:absolute;right:0;top:0;width:50%;height:100%;z-index:8;will-change:transform;transition:transform 1.38s cubic-bezier(0.77,0,0.175,1);transform-origin:right center;background:linear-gradient(260deg,#000308 0%,#010818 100%)">
+    <!-- Gold spine (left edge) -->
+    <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,transparent 4%,rgba(255,255,255,0.15) 20%,rgba(255,255,255,0.65) 45%,rgba(255,255,255,0.75) 50%,rgba(255,255,255,0.65) 55%,rgba(255,255,255,0.15) 80%,transparent 96%)"></div>
+    <div style="position:absolute;left:3px;top:0;bottom:0;width:1px;background:linear-gradient(180deg,transparent 10%,rgba(255,255,255,0.07) 50%,transparent 90%)"></div>
+    <!-- Subtle page texture lines -->
+    <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 28px,rgba(255,255,255,0.012) 28px,rgba(255,255,255,0.012) 29px);pointer-events:none"></div>
+    <!-- Corner emboss -->
+    <div style="position:absolute;top:2rem;left:3rem;right:2rem;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.04))"></div>
+    <div style="position:absolute;bottom:2rem;left:3rem;right:2rem;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.04))"></div>
+  </div>
+</div>
+
+<div id="bg-aurora"></div>
+
+
+
+
+
+
+<div id="grain"></div>
+<div id="grid"></div>
+<div id="spotlight"></div>
+
+<div class="sidebar" id="sidebar"></div>
+<div class="main" id="main"></div>
+
+<script>
+/* ─── NAV ICONS (inline SVG) ─── */
+const NAV_ICONS = {
+  overview: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.5"/></svg>`,
+  insights: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5a4.5 4.5 0 0 0-2 8.5V12h4v-2a4.5 4.5 0 0 0-2-8.5z"/><path d="M6 12h4M6.5 14h3"/></svg>`,
+  planner:  `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="13" height="12" rx="2"/><path d="M1.5 6.5h13M5 1v3M11 1v3"/></svg>`,
+  schedule: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 2.5"/></svg>`,
+  tracker:  `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h6.5"/><circle cx="13" cy="11.5" r="2"/><path d="M12 11.5l.7.7 1.3-1.3"/></svg>`,
+  editmarks:`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13.5h3l7-7-3-3-7 7v3z"/><path d="M9 3.5l3 3"/></svg>`,
+  grader:   `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5 9.8 5.2l4 .6-2.9 2.8.7 4L8 10.5l-3.6 1.9.7-4L2.1 5.8l4-.6z"/></svg>`,
+};
+
+/* ─── DATA & STORAGE ─── */
+const W = {Feb:10, Apr:15, Jun:30, Sep:45};
+const LS_KEY = 'marks_dashboard_v2';
+
+let USER_SETTINGS = { name:'', program:'My Program', institution:'', examDate:'2026-09-08T08:00:00', isSetup:false };
+let MODS = [];
+
+function loadUserData() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    if (d && d.isSetup && Array.isArray(d.modules) && d.modules.length > 0) {
+      MODS = d.modules;
+      USER_SETTINGS = { ...USER_SETTINGS, ...d.settings };
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+function saveUserData() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({ isSetup:true, modules:MODS, settings:USER_SETTINGS }));
+  } catch(e) {}
+}
+
+function resetAllData() {
+  if (!confirm('This will clear all your marks and settings. Are you sure?')) return;
+  localStorage.removeItem(LS_KEY);
+  MODS = []; USER_SETTINGS = { name:'', program:'My Program', institution:'', examDate:'2026-09-08T08:00:00', isSetup:false };
+  showOnboarding();
+}
+
+/* ─── ONBOARDING WIZARD ─── */
+let obStep = 1;
+let obModules = [{ id:'MOD1', name:'', code:'', color:'#fb7185' }];
+let obSettings = { name:'', program:'', institution:'', examDate:'2026-09-08' };
+
+const MOD_COLORS = ['#fb7185','#60a5fa','#4ade80','#fbbf24','#c084fc','#34d399','#f97316','#22d3ee'];
+
+function showOnboarding() {
+  obStep = 1;
+  obModules = [{ id:'MOD1', name:'', code:'', color:MOD_COLORS[0] }];
+  obSettings = { name:'', program:'', institution:'', examDate:'2026-09-08' };
+  renderOnboarding();
+}
+
+function renderOnboarding() {
+  const overlay = document.getElementById('ob-overlay') || (() => {
+    const el = document.createElement('div');
+    el.id = 'ob-overlay';
+    el.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.88);backdrop-filter:blur(12px)';
+    document.body.appendChild(el);
+    return el;
+  })();
+  overlay.style.display = 'flex';
+
+  const steps = ['Program','Modules','Marks'];
+  const prog = steps.map((s,i)=>`
+    <div style="display:flex;align-items:center;gap:0.4rem">
+      <div style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.5rem;font-weight:800;font-family:var(--mono);
+        ${obStep===i+1?'background:#ffffff;color:#000;':'background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.4);'}">${i+1}</div>
+      <span style="font-size:0.55rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:${obStep===i+1?'#ffffff':'rgba(255,255,255,0.3)'}">${s}</span>
+      ${i<2?'<span style="color:rgba(255,255,255,0.15);font-size:0.6rem">›</span>':''}
+    </div>`).join('');
+
+  let body = '';
+  if (obStep === 1) {
+    body = `
+      <div style="margin-bottom:1.2rem">
+        <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Your Name</div>
+        <input id="ob-name" type="text" placeholder="e.g. Sechaba Mashinini" value="${obSettings.name}"
+          style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.65rem 0.85rem;color:#fff;font-size:0.7rem;outline:none;font-family:Inter,sans-serif"
+          oninput="obSettings.name=this.value"/>
+      </div>
+      <div style="margin-bottom:1.2rem">
+        <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Program / Qualification</div>
+        <input id="ob-prog" type="text" placeholder="e.g. CTA PGDA 2026 · BCom Honours" value="${obSettings.program}"
+          style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.65rem 0.85rem;color:#fff;font-size:0.7rem;outline:none;font-family:Inter,sans-serif"
+          oninput="obSettings.program=this.value"/>
+      </div>
+      <div style="margin-bottom:1.2rem">
+        <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Institution</div>
+        <input id="ob-inst" type="text" placeholder="e.g. University of Johannesburg" value="${obSettings.institution}"
+          style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.65rem 0.85rem;color:#fff;font-size:0.7rem;outline:none;font-family:Inter,sans-serif"
+          oninput="obSettings.institution=this.value"/>
+      </div>
+      <div style="margin-bottom:1.2rem">
+        <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Final Exam Date</div>
+        <input id="ob-date" type="date" value="${obSettings.examDate}"
+          style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.65rem 0.85rem;color:#fff;font-size:0.7rem;outline:none;font-family:Inter,sans-serif;color-scheme:dark"
+          oninput="obSettings.examDate=this.value"/>
+      </div>`;
+  } else if (obStep === 2) {
+    body = `
+      <div id="ob-mods-list">
+        ${obModules.map((m,i)=>`
+          <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.6rem">
+            <input type="color" value="${m.color}" title="Module colour"
+              style="width:32px;height:32px;border:none;background:none;cursor:pointer;border-radius:6px;padding:2px"
+              oninput="obModules[${i}].color=this.value;renderOnboarding()"/>
+            <input type="text" placeholder="Module name (e.g. Financial Accounting)" value="${m.name}"
+              style="flex:2;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.55rem 0.75rem;color:#fff;font-size:0.65rem;outline:none;font-family:Inter,sans-serif"
+              oninput="obModules[${i}].name=this.value"/>
+            <input type="text" placeholder="Code (e.g. FAC8X00)" value="${m.code}"
+              style="flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.55rem 0.75rem;color:#fff;font-size:0.65rem;outline:none;font-family:var(--mono)"
+              oninput="obModules[${i}].code=this.value"/>
+            ${obModules.length>1?`<button onclick="obModules.splice(${i},1);renderOnboarding()" style="background:rgba(251,113,133,0.15);border:1px solid rgba(251,113,133,0.3);color:#fb7185;border-radius:7px;padding:0.4rem 0.6rem;cursor:pointer;font-size:0.6rem">✕</button>`:''}
+          </div>`).join('')}
+      </div>
+      ${obModules.length < 8 ? `
+        <button onclick="obModules.push({id:'MOD'+(obModules.length+1),name:'',code:'',color:MOD_COLORS[obModules.length%8]});renderOnboarding()"
+          style="width:100%;padding:0.55rem;background:rgba(255,255,255,0.05);border:1px dashed rgba(255,255,255,0.2);border-radius:10px;color:rgba(255,255,255,0.45);font-size:0.6rem;cursor:pointer;margin-top:0.3rem">
+          + Add module
+        </button>` : ''}`;
+  } else if (obStep === 3) {
+    body = `
+      <div style="font-size:0.6rem;color:var(--muted);margin-bottom:1rem">Enter percentage marks for each assessment. Leave blank if not yet completed.</div>
+      ${obModules.map((m,i)=>`
+        <div style="margin-bottom:1.1rem;padding:0.85rem 1rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-left:3px solid ${m.color};border-radius:10px">
+          <div style="font-size:0.6rem;font-weight:700;color:#fff;margin-bottom:0.7rem">${m.name||'Module '+(i+1)}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem">
+            ${[['Feb','feb','10% weight'],['Apr','apr','15% weight'],['Jun','jun','30% weight']].map(([label,key,hint])=>`
+              <div>
+                <div style="font-size:0.5rem;color:var(--faint);margin-bottom:0.2rem;font-family:var(--mono)">${label} <span style="opacity:0.5">${hint}</span></div>
+                <input type="number" min="0" max="100" step="0.01" placeholder="—" value="${m[key]??''}"
+                  style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:8px;padding:0.45rem 0.6rem;color:#fff;font-size:0.65rem;outline:none;font-family:var(--mono)"
+                  oninput="obModules[${i}]['${key}']=this.value===''?null:parseFloat(this.value)"/>
+              </div>`).join('')}
+          </div>
+        </div>`).join('')}`;
+  }
+
+  overlay.innerHTML = `
+    <div style="background:rgba(8,10,20,0.96);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:2rem 2.2rem;width:min(520px,90vw);max-height:90vh;overflow-y:auto;box-shadow:0 40px 80px rgba(0,0,0,0.8)">
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem">
+        <div style="width:28px;height:28px;background:linear-gradient(135deg,#ffffff,#cccccc);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.5rem;font-weight:900;color:#000">MK</div>
+        <span style="font-size:0.6rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Marks Dashboard · Setup</span>
+      </div>
+      <div style="font-size:1.4rem;font-weight:900;letter-spacing:-0.04em;color:#fff;margin-bottom:0.3rem">
+        ${obStep===1?'Tell us about you':obStep===2?'Your modules':' Enter your marks'}
+      </div>
+      <div style="font-size:0.6rem;color:var(--muted);margin-bottom:1.4rem">
+        ${obStep===1?'Personalise your dashboard — all data stays on your device.':obStep===2?'Add the modules you\'re being assessed on this year.':'All marks are stored locally. You can update them anytime.'}
+      </div>
+      <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1.5rem">${prog}</div>
+      ${body}
+      <div style="display:flex;gap:0.7rem;margin-top:1.5rem;justify-content:flex-end">
+        ${obStep>1?`<button onclick="obStep--;renderOnboarding()" style="padding:0.6rem 1.2rem;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:0.65rem;font-weight:600;cursor:pointer">← Back</button>`:''}
+        <button onclick="obNext()" style="padding:0.6rem 1.4rem;background:linear-gradient(135deg,#ffffff,#cccccc);border:none;border-radius:10px;color:#000;font-size:0.65rem;font-weight:800;cursor:pointer;letter-spacing:0.01em">
+          ${obStep<3?'Continue →':'Launch Dashboard'}
+        </button>
+      </div>
+    </div>`;
+}
+
+function obNext() {
+  if (obStep === 1) {
+    obSettings.name = document.getElementById('ob-name')?.value || obSettings.name;
+    obSettings.program = document.getElementById('ob-prog')?.value || obSettings.program;
+    obSettings.institution = document.getElementById('ob-inst')?.value || obSettings.institution;
+    obSettings.examDate = document.getElementById('ob-date')?.value || obSettings.examDate;
+    if (!obSettings.program.trim()) { alert('Please enter your program name.'); return; }
+    obStep = 2;
+    renderOnboarding();
+  } else if (obStep === 2) {
+    const valid = obModules.every(m => m.name.trim());
+    if (!valid) { alert('Please enter a name for each module.'); return; }
+    // assign short IDs
+    obModules.forEach((m,i) => { m.id = m.name.substring(0,3).toUpperCase().replace(/\s/g,'') + (i+1); });
+    obStep = 3;
+    renderOnboarding();
+  } else {
+    // Finalise
+    USER_SETTINGS = {
+      name: obSettings.name,
+      program: obSettings.program,
+      institution: obSettings.institution,
+      examDate: obSettings.examDate + 'T08:00:00',
+      isSetup: true
+    };
+    SEP_EXAM = new Date(USER_SETTINGS.examDate);
+    MODS = obModules.map(m => ({
+      ...m,
+      jun: m.jun != null ? parseFloat(m.jun) : null,
+      feb: m.feb != null ? parseFloat(m.feb) : null,
+      apr: m.apr != null ? parseFloat(m.apr) : null,
+      junRaw: null, junTotal: 100,
+      junStatus: m.jun != null ? (parseFloat(m.jun) >= 50 ? 'pass' : 'fail') : 'pending',
+      breakdown: [], priorities: []
+    }));
+    saveUserData();
+    document.getElementById('ob-overlay').style.display = 'none';
+    switchTab('overview');
+  }
+}
+
+/* ─── EDIT MARKS ─── */
+function renderEditMarks() {
+  return `
+    <div class="ph">
+      <span class="ph-sup">${USER_SETTINGS.program}</span>
+      <div class="ph-h1">Edit Marks</div>
+      <span class="ph-sub">Update your marks below — changes save instantly</span>
+    </div>
+    <div class="glass" style="padding:1.2rem 1.4rem;margin-bottom:1rem">
+      <div class="shimmer"></div>
+      <div style="font-size:0.6rem;color:var(--muted);margin-bottom:1.2rem">Marks are entered as <strong style="color:#fff">percentages (0–100)</strong>. The Sep mark is simulated in the Planner tab.</div>
+      ${MODS.map((m,i)=>`
+        <div style="margin-bottom:1.1rem;padding:1rem 1.1rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-left:3px solid ${m.color};border-radius:12px">
+          <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.8rem">
+            <span style="font-size:0.65rem;font-weight:700;color:#fff">${m.name}</span>
+            <span style="font-size:0.5rem;font-family:var(--mono);color:var(--faint);border:1px solid rgba(255,255,255,0.1);padding:1px 7px;border-radius:5px">${m.code}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.7rem">
+            ${[['Feb','feb','10% weight'],['Apr','apr','15% weight'],['Jun','jun','30% weight']].map(([label,key,hint])=>`
+              <div>
+                <div style="font-size:0.5rem;color:var(--faint);margin-bottom:0.22rem;font-family:var(--mono)">${label} <span style="opacity:0.6">${hint}</span></div>
+                <input type="number" min="0" max="100" step="0.01" placeholder="—" value="${m[key]??''}" id="em-${m.id}-${key}"
+                  style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:8px;padding:0.5rem 0.65rem;color:#fff;font-size:0.7rem;outline:none;font-family:var(--mono)"/>
+              </div>`).join('')}
+          </div>
+        </div>`).join('')}
+      <button onclick="saveEditMarks()" style="width:100%;padding:0.75rem;background:linear-gradient(135deg,#ffffff,#cccccc);border:none;border-radius:12px;color:#000;font-size:0.7rem;font-weight:800;cursor:pointer;margin-top:0.5rem">Save Marks</button>
+    </div>
+    <div class="glass" style="padding:1rem 1.2rem">
+      <div class="shimmer"></div>
+      <div style="font-size:0.6rem;font-weight:700;color:var(--muted);margin-bottom:0.6rem;text-transform:uppercase;letter-spacing:0.06em">Program Settings</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;margin-bottom:0.8rem">
+        <div>
+          <div style="font-size:0.5rem;color:var(--faint);margin-bottom:0.2rem">Program name</div>
+          <input type="text" id="em-prog" value="${USER_SETTINGS.program}"
+            style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:8px;padding:0.5rem 0.65rem;color:#fff;font-size:0.65rem;outline:none;font-family:Inter,sans-serif"/>
+        </div>
+        <div>
+          <div style="font-size:0.5rem;color:var(--faint);margin-bottom:0.2rem">Institution</div>
+          <input type="text" id="em-inst" value="${USER_SETTINGS.institution}"
+            style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:8px;padding:0.5rem 0.65rem;color:#fff;font-size:0.65rem;outline:none;font-family:Inter,sans-serif"/>
+        </div>
+      </div>
+      <div style="margin-bottom:0.9rem">
+        <div style="font-size:0.5rem;color:var(--faint);margin-bottom:0.2rem">Final exam date</div>
+        <input type="date" id="em-date" value="${USER_SETTINGS.examDate.substring(0,10)}"
+          style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:8px;padding:0.5rem 0.65rem;color:#fff;font-size:0.65rem;outline:none;color-scheme:dark"/>
+      </div>
+      <div style="display:flex;gap:0.7rem">
+        <button onclick="saveProgSettings()" style="flex:1;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:0.65rem;font-weight:700;cursor:pointer">Save Settings</button>
+        <button onclick="resetAllData()" style="padding:0.6rem 1rem;background:rgba(251,113,133,0.1);border:1px solid rgba(251,113,133,0.25);border-radius:10px;color:#fb7185;font-size:0.65rem;font-weight:700;cursor:pointer">Reset All Data</button>
+      </div>
+    </div>`;
+}
+
+function saveEditMarks() {
+  MODS.forEach(m => {
+    ['feb','apr','jun'].forEach(key => {
+      const el = document.getElementById(`em-${m.id}-${key}`);
+      if (el) {
+        const v = el.value === '' ? null : parseFloat(el.value);
+        m[key] = v;
+      }
+    });
+    m.junStatus = m.jun != null ? (m.jun >= 50 ? 'pass' : 'fail') : 'pending';
+    if (m.jun != null) { m.junRaw = m.jun; m.junTotal = 100; }
+  });
+  saveUserData();
+  switchTab('overview');
+}
+
+function saveProgSettings() {
+  USER_SETTINGS.program = document.getElementById('em-prog')?.value || USER_SETTINGS.program;
+  USER_SETTINGS.institution = document.getElementById('em-inst')?.value || USER_SETTINGS.institution;
+  const d = document.getElementById('em-date')?.value;
+  if (d) { USER_SETTINGS.examDate = d + 'T08:00:00'; SEP_EXAM = new Date(USER_SETTINGS.examDate); }
+  saveUserData();
+  renderSidebar();
+  alert('Settings saved!');
+}
+
+/* ─── LEGACY TEMPLATE (only used if user skips setup) ─── */
+const _MODS_UNUSED = [
+  {id:"FAC", name:"Financial Accounting", code:"FAC8X00", color:"#fb7185",
+   feb:50, apr:52.92, jun:35, junRaw:42, junTotal:120, junStatus:"fail",
+   breakdown:[
+    {q:"Q(a) Debentures — IAS 32",e:6,a:14,note:"Variable share count fails fixed-for-fixed test → all-liability. Compound classification incorrect."},
+    {q:"Q(b) Artemis Bonds — ECL",e:6,a:19,note:"Wrong payment dates (Oct vs Aug). EIR error cascades through all journals and ECL amounts."},
+    {q:"Q(c) IFRS 16 Lease",e:10,a:17,note:"Flat PMT instead of uneven CFs (R100k months 1–12; R120k months 13–84). Reassessment diff expensed, not added to ROU."},
+    {q:"Q(d) Style-Miles — IFRS 15",e:4,a:10,note:"Used actual redeemed points as denominator. Correct: breakage-adjusted SSP (4,770,000 × 75%)."},
+    {q:"Q e(i) Lay-by Evaluation",e:3,a:6,note:"Stated trade receivable exists — wrong. No unconditional right to cash; customer can cancel and get full refund."},
+    {q:"Q e(ii) Revenue Reconciliation",e:3,a:6,note:"Revenue R48.1m (should be R49.5m). Missed new deposit line R10,560,000 (52,800,000 × 20%)."},
+    {q:"Q(f) Prior Period Error",e:2,a:13,note:"Used 184 employees flat. Correct: 162 unvested (May 2024, 2/3) → 112 unvested + 42 exercised (May 2025)."},
+    {q:"Q(g) SAR Expense 2026",e:0,a:2,note:"Should be GAIN of R12,600. FV at settlement (R12.70) < prior year accrual (R12.76) = remeasurement reversal."},
+    {q:"Q(h) Tax Rate Reconciliation",e:8,a:33,note:"Conflated DTA schedule with rate recon. Missed building depreciation and impairment — the two dominant items."}
+   ],
+   priorities:[
+    "IAS 32: variable share count fails fixed-for-fixed test — entire instrument = financial liability",
+    "IFRS 16: uneven CFs require HP CF-register (CF1/N1, CF2/N2) — never a flat PMT",
+    "IFRS 9 ECL: align bond coupon periods to reporting year — 3/6 fraction for Period 1",
+    "Tax rate recon: PBT × 27% plus/minus permanent differences ONLY (not a DTA movement schedule)",
+    "IFRS 2 cash-settled: remeasurement on settlement = gain/loss, not a new SBP expense"
+   ]},
+  {id:"AUC", name:"Auditing & Control", code:"AUC8X00", color:"#60a5fa",
+   feb:40, apr:34.58, jun:62.92, junRaw:75.5, junTotal:120, junStatus:"pass",
+   breakdown:[
+    {q:"Q1(a) Sustainability Acceptance",e:3,a:6,note:"Missed S94(7)/S93(3) statutory requirements. Missed CPC self-interest threat (additional fees from same client)."},
+    {q:"Q1(b) IT System Development",e:8,a:10,note:"Strong. Missed: data reconciliation old→new system; formal post-implementation review."},
+    {q:"Q1(c) Inherent Risks — Wages",e:7,a:8,note:"Excellent. Missed one: cut-off risk — wages hourly/weekly but recorded and paid monthly."},
+    {q:"Q1(d) Processing Controls",e:9,a:12,note:"Good. Missed: masterfile physical review; supporting doc referenced on PAF; activity log review by senior."},
+    {q:"Q1(e)(i) Directors' Fees",e:4,a:6,note:"Missed: reperform lead schedule; agree to TB/FS; agree to IRP5 (IT3a) certificates."},
+    {q:"Q1(e)(ii) Wages Substantive",e:13,a:18,note:"Comprehensive. Missed: payroll totals → GL; PAYE EMP reconciliations to SARS; on-system HR approval."},
+    {q:"Q2(a) Management Integrity",e:0,a:11,note:"CRITICAL: gave positive ISA 220 assessment. Required RED FLAGS — S75, S90(2)(b), CPC S523, remuneration incentive, sold ill animal."},
+    {q:"Q2(b) INV200 Working Paper",e:10,a:14,note:"Strong critique. Missed: RIGHTS assertion for goods in transit (FOB — ownership not transferred at year-end)."},
+    {q:"Q2(c) Audit Report — Hawal",e:5,a:7,note:"Concluded adverse. Memo: qualified (except-for) unless pervasive — single provision, not pervasive."},
+    {q:"Q3(a)(1) ROMM — FS Level",e:8,a:10,note:"Good. Missed: first-time audit risk; FS prepared on incorrect going concern basis."},
+    {q:"Q3(a)(2) ROMM — PPE/ROU",e:7.5,a:10,note:"Good. Missed: IFRS 16 PV complexity; lower-of-lease-term vs useful-life depreciation rule."},
+    {q:"Q4 (Homework)",e:0,a:8,note:"Not answered / not in scan. Physically verify original booklet with faculty."}
+   ],
+   priorities:[
+    "ISA 220: management integrity = identify CONCERNS and RED FLAGS, not validate good governance",
+    "Companies Act: S75 (directors vote own remuneration), S90(2)(b) (auditor also a director)",
+    "CPC S523: audit partner + NED at same entity = entire audit relationship is illegal",
+    "Acceptance: S94(7)/S93(3) statutory requirements addressed FIRST before competence/independence",
+    "Opinion: material-but-not-pervasive = qualified (except-for); pervasive = adverse"
+   ]},
+  {id:"TAX", name:"Taxation", code:"TAX8X00", color:"#4ade80",
+   feb:36, apr:39.17, jun:59.58, junRaw:71.5, junTotal:120, junStatus:"pass",
+   breakdown:[
+    {q:"Q1(a)(i) Residency",e:4,a:6,note:"Missed: >91 days in current year AND >549 days in aggregate over 3 years — exact formulation required."},
+    {q:"Q1(a)(ii) Interest — S50D",e:3,a:6,note:"Confused S50D(2) (bank-payer) and S50D(3) (>183-day physical presence). S24J not addressed."},
+    {q:"Q1(a)(iii) VAT Imported Service",e:5,a:9,note:"Used R220,265 × 15/115 — wrong. Base is VAT-exclusive: R220,265 × 15% × 40% = R13,216."},
+    {q:"Q1(a)(v) CGT — Shares",e:9,a:14,note:"Connected person correct. Immovable property ratio: got 98.83% (wrong) vs correct 83% — wrong numerator/denominator."},
+    {q:"Q1(a)(vi) Provisional Taxpayer",e:3,a:4,note:"Missed: R336k interest = nil taxable under S10(1)(h), so only services income triggers the obligation."},
+    {q:"Q1(b) Leasehold Improvements",e:8,a:12,note:"Missed: par 33(3)(c) — no part disposal when lessee improves leased property. CGT consequences not addressed."},
+    {q:"Q1(c) Tigan Motor Vehicle",e:6,a:17,note:"S22(8) proviso (d) no recoupment; no output VAT on fringe benefit (exempt supplies); CGT on trading stock = revenue."},
+    {q:"Q1(d)(i) Parts for Africa",e:8,a:16,note:"Recoupment not capped at prior allowances (R693k limit). S19(7); output VAT on sale; 80% CGT inclusion missed."},
+    {q:"Q1(d)(ii) Finity — Loan Sale",e:2,a:9,note:"CRITICAL: s1 connected = >50% equity (not >70%). Goldwagen 51% → connected. Par 38 deemed proceeds; par 56 loss disregarded."},
+    {q:"Q1(d)(iii) BEPS/Transfer Pricing",e:1,a:5,note:"s31 threshold = >20% (not >70%). Goldwagen 22% → transfer pricing applies. Interest-free loan not arm's length."},
+    {q:"Q2(a) Gross Income Topics",e:7,a:9,note:"Strong P-A-C structure on deposits and 100% accrual. Both topics correctly concluded."},
+    {q:"Q2(b) Madisebo — IoM CFC",e:4,a:5,note:"Missed: acquisition cost = capital → S11(a) N/A; S25D translation at spot or average rate."},
+    {q:"Q2(c) Siya — Mauritius",e:9,a:11,note:"Very strong. Missed: no S6Quat credit on rental — DTA Article 6 excludes rental from SA's taxing rights."}
+   ],
+   priorities:[
+    "Connected persons: s1 general = >50%; s31 transfer pricing = >20%; par 56 clogged loss = >70%",
+    "S22(8) proviso (d): manufactured trading stock applied in business = NO recoupment",
+    "VAT: change-of-use → s18(1) output; sale of exempt-supply asset = NOT in furtherance",
+    "CGT on trading stock = revenue event under par jA, NOT a capital event",
+    "Imported service VAT: consideration × 15% (VAT-exclusive base), NOT 15/115"
+   ]},
+  {id:"MAF", name:"Management Accounting", code:"MAF8X00", color:"#fbbf24",
+   feb:50, apr:47.92, jun:53.33, junRaw:64, junTotal:120, junStatus:"pass",
+   breakdown:[
+    {q:"Q1 Africa Sole — Cost Accounting",e:32,a:60,note:"Gross profit, sales/hides variances, journal entries, limiting factor analysis, management letter."},
+    {q:"Q2(a) Transfer Pricing Range",e:2,a:14,note:"CRITICAL: calculated 5,000 slabs needed (should be 4,000). Input error cascades through entire opportunity cost and TP range."},
+    {q:"Q2(b) Transfer Price Debate",e:4,a:5,note:"Strong conceptual discussion. Missed: R0.50 internal saving application to the floor of the negotiation range."},
+    {q:"Q2(c) Special Order",e:5,a:9,note:"Identified five valid factors. Four further factors (capacity, pricing precedent, strategic impact, fixed cost recovery) missed."},
+    {q:"Q2(d) Bonus Pool Evaluation",e:6,a:10,note:"Good coverage: arbitrary measurement, single financial measures, EVA suggestion, uncontrollable costs, short-term focus."},
+    {q:"Q2(e) FCF Valuation",e:15,a:22,note:"WACC correct (minor: Ke 18.57% vs 18.5%). FCF calculation materially wrong. Terminal value error: divided by g instead of (WACC − g)."}
+   ],
+   priorities:[
+    "Transfer pricing: establish correct throughput units FIRST (capacity ÷ hours per unit) before opportunity cost",
+    "FCF derivation: EBIT → deduct cash tax → add back non-cash → adjust working capital and capex",
+    "Terminal value: FCF × (1+g) / (WACC − g) — never divide by g alone",
+    "Special order: address all nine factors (capacity, pricing precedent, strategic fit, incremental costs, fixed recovery)",
+    "Bonus pool design: link each flaw to specific dysfunctional behaviours and agency theory principles"
+   ]}
+];
+// End legacy template
+
+/* ─── HELPERS ─── */
+const clamp = (v,lo,hi) => Math.max(lo, Math.min(hi, v));
+const f1    = v => v == null ? "—" : v.toFixed(1) + "%";
+const hymOf = m => {
+  const feb = m.feb ?? 0, apr = m.apr ?? 0, jun = m.jun ?? 0;
+  const wt = (m.feb!=null?W.Feb:0)+(m.apr!=null?W.Apr:0)+(m.jun!=null?W.Jun:0);
+  return wt ? (feb*W.Feb + apr*W.Apr + jun*W.Jun) / (W.Feb+W.Apr+W.Jun) : null;
+};
+const ymOf  = (m,sep) => (m.feb*W.Feb + m.apr*W.Apr + (m.jun??0)*W.Jun + sep*W.Sep) / 100;
+const sepFor = m => clamp((5000 - m.feb*W.Feb - m.apr*W.Apr - (m.jun??0)*W.Jun) / W.Sep, 0, 100);
+const pad2  = n => String(Math.max(0,n)).padStart(2,'0');
+
+const cv  = v => v==null?"#c084fc":v>=50?"#4ade80":v>=33?"#fbbf24":"#fb7185";
+const cvS = v => v==null?"rgba(192,132,252,0.12)":v>=50?"rgba(74,222,128,0.10)":v>=33?"rgba(251,191,36,0.10)":"rgba(251,113,133,0.10)";
+const cvB = v => v==null?"rgba(192,132,252,0.26)":v>=50?"rgba(74,222,128,0.24)":v>=33?"rgba(251,191,36,0.24)":"rgba(251,113,133,0.24)";
+
+function pill(s) {
+  const m = {
+    pass:["#4ade80","rgba(74,222,128,0.11)","rgba(74,222,128,0.28)","PASS"],
+    fail:["#fb7185","rgba(251,113,133,0.11)","rgba(251,113,133,0.28)","FAIL"],
+    pending:["#c084fc","rgba(192,132,252,0.11)","rgba(192,132,252,0.28)","PENDING"]
+  };
+  const [c,bg,b,lbl] = m[s] || m.pending;
+  return `<span class="pill" style="color:${c};background:${bg};border-color:${b};box-shadow:inset 0 1px 0 rgba(255,255,255,0.18),0 0 9px ${c}24">${lbl}</span>`;
+}
+
+function pbar(pct, color, bg="rgba(255,255,255,0.09)", h=5) {
+  const w = Math.min(Math.max(pct,0),100);
+  return `<div class="pbar" style="height:${h}px;background:${bg}">
+    <div class="pbar-fill" style="width:${w}%;height:100%;background:linear-gradient(90deg,${color}80,${color});box-shadow:0 0 7px ${color}45"></div>
+  </div>`;
+}
+
+/* ─── COUNTDOWN ─── */
+let SEP_EXAM = new Date('2026-09-08T08:00:00');
+function getCountdown() {
+  const diff = SEP_EXAM - new Date();
+  if (diff <= 0) return {d:0,h:0,m:0,s:0};
+  return {
+    d: Math.floor(diff / 86400000),
+    h: Math.floor((diff % 86400000) / 3600000),
+    m: Math.floor((diff % 3600000) / 60000),
+    s: Math.floor((diff % 60000) / 1000)
+  };
+}
+function refreshCountdown() {
+  const {d,h,m,s} = getCountdown();
+  ['d','h','m','s'].forEach((k,i) => {
+    const v = [d,h,m,s][i];
+    const el = document.getElementById(`cd-${k}`);
+    if (el) el.textContent = pad2(v);
+  });
+}
+
+/* ─── STATE ─── */
+let sepVal = 50, currentTab = 'overview';
+
+/* ─── SPOTLIGHT ─── */
+document.addEventListener('mousemove', e => {
+  const sp = document.getElementById('spotlight');
+  if (sp) { sp.style.left = e.clientX+'px'; sp.style.top = e.clientY+'px'; }
+});
+
+/* ─── SIDEBAR ─── */
+function renderSidebar() {
+  const passed = MODS.filter(m=>m.junStatus==='pass').length;
+  const failed = MODS.filter(m=>m.junStatus==='fail').length;
+  const logoText = (USER_SETTINGS.program || 'Marks').substring(0,8);
+  document.getElementById('sidebar').innerHTML = `
+    <div class="logo">
+      <div class="logo-icon">${logoText.substring(0,3).toUpperCase()}</div>
+      <div><span class="logo-name">${USER_SETTINGS.program || 'My Dashboard'}</span><span class="logo-sub">${USER_SETTINGS.institution || 'Academic Tracker'}</span></div>
+    </div>
+    <div class="nav-sec">Main</div>
+    ${nb('overview','OV','Overview')}
+    ${nb('insights','IN','Insights')}
+    ${nb('planner','SP','Sep Planner')}
+    ${nb('schedule','SC','Study Schedule')}
+    ${nb('tracker','TR','Task Tracker')}
+    <div class="nav-sec">Modules</div>
+    ${MODS.map(m => {
+      const c  = m.junStatus==='pass' ? '#4ade80' : m.junStatus==='fail' ? '#fb7185' : '#c084fc';
+      const bg = m.junStatus==='pass' ? 'rgba(74,222,128,0.12)' : m.junStatus==='fail' ? 'rgba(251,113,133,0.12)' : 'rgba(192,132,252,0.12)';
+      const badge = m.jun != null ? (m.jun.toFixed(1)+'%') : '—';
+      return `<button class="nav-btn ${currentTab===m.id.toLowerCase()?'active':''}" onclick="switchTab('${m.id.toLowerCase()}')" aria-label="${m.name}" aria-current="${currentTab===m.id.toLowerCase()?'page':'false'}">
+        <span class="nav-icon"><span class="dot" style="background:${m.color};box-shadow:0 0 6px ${m.color}80"></span></span>
+        <span style="flex:1">${m.name.length>14?m.name.substring(0,12)+'…':m.name}</span>
+        <span class="mod-badge" style="color:${c};background:${bg};border:1px solid ${c}40;box-shadow:inset 0 1px 0 ${c}18">${badge}</span>
+      </button>`;
+    }).join('')}
+    <div class="nav-divider"></div>
+    ${nb('editmarks','ED','Edit Marks')}
+    ${nb('grader','GR','Exam Grader')}
+    <div class="sb-footer">
+      <div class="sb-stat">
+        <span class="sb-stat-t">${passed} of ${MODS.length} passed</span>
+        <span class="sb-stat-s">${failed>0?`${failed} module${failed>1?'s':''} need${failed===1?'s':''} Sep focus`:'Keep it up!'}</span>
+      </div>
+    </div>`;
+}
+function nb(tab, icon, label) {
+  const svg = NAV_ICONS[tab] || `<span style="font-size:0.48rem;font-weight:800;letter-spacing:-0.02em;color:rgba(255,255,255,0.32)">${icon}</span>`;
+  return `<button class="nav-btn ${currentTab===tab?'active':''}" onclick="switchTab('${tab}')" aria-label="${label}" aria-current="${currentTab===tab?'page':'false'}">
+    <span class="nav-icon">${svg}</span>${label}
+  </button>`;
+}
+
+/* ─── OVERVIEW ─── */
+function renderOverview() {
+  const graded = MODS.filter(m=>m.jun!=null);
+  const avgJun = graded.length ? graded.reduce((s,m)=>s+m.jun,0)/graded.length : null;
+  const passed  = MODS.filter(m=>m.jun!=null&&m.jun>=50).length;
+  const hymVals = MODS.map(m=>hymOf(m)).filter(v=>v!=null);
+  const avgHYM  = hymVals.length ? hymVals.reduce((a,b)=>a+b,0)/hymVals.length : null;
+  const worst   = graded.length ? graded.reduce((a,b)=>b.jun<a.jun?b:a) : null;
+  const {d,h,m,s} = getCountdown();
+  const cards = [
+    {label:"Jun Average",val:avgJun!=null?f1(avgJun):'No data',c:cv(avgJun),s:cvS(avgJun),b:cvB(avgJun),sub:`${graded.length} of ${MODS.length} graded`,icon:"AVG"},
+    {label:"Modules Passed",val:`${passed}/${MODS.length}`,c:passed>=MODS.length?"#4ade80":passed>0?"#fbbf24":"#fb7185",s:passed>=MODS.length?"rgba(74,222,128,0.10)":"rgba(251,191,36,0.10)",b:passed>=MODS.length?"rgba(74,222,128,0.24)":"rgba(251,191,36,0.24)",sub:"min. 50% per module",icon:"PAS"},
+    {label:"HYM Average",val:avgHYM!=null?f1(avgHYM):'No data',c:cv(avgHYM),s:cvS(avgHYM),b:cvB(avgHYM),sub:"Feb · Apr · Jun",icon:"HYM"},
+    worst?{label:"Priority Module",val:worst.name.length>10?worst.name.substring(0,8)+'…':worst.name,c:"#fb7185",s:"rgba(251,113,133,0.10)",b:"rgba(251,113,133,0.24)",sub:`${f1(worst.jun)} · needs attention`,icon:"PRI"}:
+          {label:"Priority Module",val:'—',c:"rgba(255,255,255,0.3)",s:"rgba(255,255,255,0.05)",b:"rgba(255,255,255,0.08)",sub:"No Jun marks yet",icon:"PRI"}
+  ];
+  return `
+    <div class="ph">
+      <span class="ph-sup">${USER_SETTINGS.program}${USER_SETTINGS.institution?' · '+USER_SETTINGS.institution:''}</span>
+      <div class="ph-h1">${passed>0?`${passed} of ${MODS.length} passed`:graded.length>0?'Results pending':'Track your progress'}</div>
+      <span class="ph-sub">${USER_SETTINGS.name?USER_SETTINGS.name+' · ':''}Academic marks tracker · All data stored locally</span>
+    </div>
+
+    <span class="cd-sup">Final Exam Countdown — ${SEP_EXAM.toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'})}</span>
+    <div class="countdown">
+      ${[['d',d,'Days'],['h',h,'Hours'],['m',m,'Minutes'],['s',s,'Seconds']].map(([k,v,l])=>`
+        <div class="cd-item glass lift">
+          <div class="shimmer"></div>
+          <div class="cd-val" id="cd-${k}">${pad2(v)}</div>
+          <div class="cd-label">${l}</div>
+        </div>`).join('')}
+    </div>
+
+    <div class="slabel">Performance Snapshot</div>
+    <div class="a-grid">
+      ${cards.map(c=>`
+        <div class="glass a-card lift">
+          <div class="shimmer"></div>
+          <div class="a-header">
+            <span class="a-label">${c.label}</span>
+            <div class="a-icon" style="background:${c.s};border-color:${c.b}">${c.icon}</div>
+          </div>
+          <div class="a-val" style="color:${c.c};text-shadow:0 0 20px ${c.c}44">${c.val}</div>
+          <div class="a-sub">${c.sub}</div>
+        </div>`).join('')}
+    </div>
+
+    <div class="two-col">
+      <div class="glass chart-card">
+        <div class="shimmer"></div>
+        <div class="slabel">Performance Trajectory</div>
+        <div style="height:228px"><canvas id="perfChart"></canvas></div>
+        <div class="chart-legend">
+          ${MODS.map(m=>`<div class="l-item"><span class="l-dot" style="background:${m.color};box-shadow:0 0 5px ${m.color}75"></span>${m.id} — ${m.name.split(' ')[0]}</div>`).join('')}
+          <span style="margin-left:auto;font-size:0.54rem;color:var(--faint)">— 50% pass line</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.62rem">
+        ${MODS.map(m=>`
+          <div class="glass mini-mod" onclick="switchTab('${m.id.toLowerCase()}')">
+            <div class="shimmer"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;position:relative;z-index:2">
+              <div>
+                <span style="font-size:0.82rem;font-weight:700">${m.id}</span>
+                <span style="font-size:0.58rem;color:var(--faint);margin-left:0.38rem">${m.name.split(' ').slice(0,2).join(' ')}</span>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:0.98rem;font-weight:800;color:${m.color};font-family:'JetBrains Mono',monospace;text-shadow:0 0 12px ${m.color}45">${m.junRaw}/120</div>
+                <div style="margin-top:0.2rem">${pill(m.junStatus)}</div>
+              </div>
+            </div>
+            ${pbar(m.jun, m.color, 'rgba(255,255,255,0.09)', 4)}
+            <div style="font-size:0.52rem;color:var(--faint);margin-top:0.34rem;position:relative;z-index:2">Open detailed breakdown</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+/* ─── MODULE DETAIL ─── */
+function renderModulePage(mod) {
+  const hym  = hymOf(mod);
+  const need = sepFor(mod);
+  return `
+    <div class="ph">
+      <span class="ph-sup">${mod.code} · June 2026</span>
+      <div class="ph-h1" style="background:linear-gradient(135deg,#fff 32%,${mod.color}cc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">${mod.name}</div>
+      <span class="ph-sub">Question-level breakdown with September priority fixes</span>
+    </div>
+    <div class="glass m-header-glass" style="margin-bottom:1rem">
+      <div class="shimmer"></div>
+      <div style="display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap">
+        <div>
+          <div style="font-size:0.55rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.22rem">June Score</div>
+          <div style="font-size:3.2rem;font-weight:900;letter-spacing:-0.05em;color:${mod.color};line-height:1;font-family:'JetBrains Mono',monospace;text-shadow:0 0 28px ${mod.color}45">${mod.jun!=null?mod.jun.toFixed(1)+'%':'—'}</div>
+          <div style="margin-top:0.42rem">${pill(mod.junStatus)}</div>
+        </div>
+        <div style="flex:1;min-width:180px">
+          <div style="display:flex;gap:0.5rem;margin-bottom:0.7rem">
+            ${[["Feb",mod.feb,"10%"],["Apr",mod.apr,"15%"],["Jun",mod.jun,"30%"]].map(([s,v,w])=>`
+              <div class="m-chip">
+                <span class="m-chip-id" style="color:${cv(v)}">${s}</span>
+                <span class="m-chip-val" style="color:${cv(v)};text-shadow:0 0 10px ${cv(v)}36">${f1(v)}</span>
+                <span class="m-chip-w">${w} weight</span>
+              </div>`).join('')}
+          </div>
+          <div style="display:flex;gap:0.5rem">
+            <div class="m-stat">
+              <div class="m-stat-l">Half-Year Mark</div>
+              <div class="m-stat-v" style="color:${cv(hym)}">${f1(hym)}</div>
+            </div>
+            <div class="m-stat">
+              <div class="m-stat-l">Sep needed for 50% YM</div>
+              <div class="m-stat-v" style="color:${need>75?"#fb7185":need>55?"#fbbf24":"#4ade80"}">${need.toFixed(0)}%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.45fr 1fr;gap:0.85rem">
+      <div class="glass bd-wrap">
+        <div class="shimmer"></div>
+        <div class="slabel">Question Breakdown</div>
+        ${(mod.breakdown||[]).length===0?`
+          <div style="padding:1.5rem 0;text-align:center;color:var(--faint);font-size:0.6rem">
+            No question breakdown added yet.<br>
+            <span style="font-size:0.55rem;opacity:0.6">Paste your marked paper into the Exam Grader to generate a detailed breakdown.</span>
+          </div>`
+        :(mod.breakdown||[]).map(b=>{
+          const pq = b.a>0?(b.e/b.a)*100:0;
+          return `<div class="bd-item">
+            <div class="bd-row">
+              <span class="bd-q">${b.q}</span>
+              <span class="bd-score" style="color:${cv(pq)};text-shadow:0 0 8px ${cv(pq)}36">${b.e}/${b.a}</span>
+            </div>
+            ${pbar(pq, cv(pq), cvS(pq), 4)}
+            <div class="bd-note">${b.note}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="glass pr-wrap">
+        <div class="shimmer"></div>
+        <div class="slabel">Priority Fixes</div>
+        ${(mod.priorities||[]).length===0?`
+          <div style="padding:1.5rem 0;text-align:center;color:var(--faint);font-size:0.6rem">
+            No priorities yet.<br>
+            <span style="font-size:0.55rem;opacity:0.6">Use the Exam Grader to identify areas to focus on.</span>
+          </div>`
+        :(mod.priorities||[]).map((p,i)=>`
+          <div class="pr-item">
+            <span class="pr-num" style="color:${mod.color};background:${cvS(mod.jun)};border:1px solid ${cvB(mod.jun)}">${i+1}</span>
+            <span class="pr-text">${p}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+/* ─── SEP PLANNER ─── */
+function renderPlanner() {
+  return `
+    <div class="ph">
+      <span class="ph-sup">Scenario Planning</span>
+      <div class="ph-h1">September Planner</div>
+      <span class="ph-sub">Simulate any September score and see its impact on all four year marks</span>
+    </div>
+    <div class="sep-wrap">
+      <div class="glass sep-card">
+        <div class="shimmer"></div>
+        <div class="sep-input">
+          <span class="sep-if">If I score</span>
+          <span class="sep-num" id="sep-big">${sepVal}%</span>
+          <span class="sep-then">in September, my year marks become</span>
+          <input type="range" class="sep-slider" id="sep-slider" min="0" max="100" step="1" value="${sepVal}">
+          <div class="sep-ticks">${[0,25,50,75,100].map(v=>`<span>${v}%</span>`).join('')}</div>
+        </div>
+        <div class="sep-results" id="sep-results">
+          ${MODS.map(m=>{
+            const ym = ymOf(m,sepVal), clears = ym>=50;
+            return `<div class="sep-r${clears?" clears":""}" id="sep-r-${m.id}">
+              <div class="sep-r-head">
+                <div class="sep-r-left">
+                  <span class="dot" style="background:${m.color};box-shadow:0 0 6px ${m.color}80"></span>
+                  <span class="sep-r-id">${m.id}</span>
+                  <span class="sep-r-sub">— ${m.name.split(' ')[0]} — year mark</span>
+                </div>
+                <span class="sep-r-ym" id="sep-ym-${m.id}" style="color:${cv(ym)};text-shadow:0 0 10px ${cv(ym)}36">${f1(ym)}</span>
+              </div>
+              ${pbar(ym, cv(ym), clears?"rgba(74,222,128,0.10)":"rgba(255,255,255,0.09)", 5)}
+              <div class="sep-r-status" id="sep-status-${m.id}" style="color:${clears?"#4ade80":"var(--muted)"};font-weight:${clears?600:400}">
+                ${clears?"Clears 50% year mark":`Needs ${sepFor(m).toFixed(0)}% in Sep to reach 50%`}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ─── INSIGHTS ─── */
+function renderInsights() {
+  const items = [
+    {marker:"FAC",mc:"#fb7185",border:"#fb7185",text:"Financial Accounting (42/120 = 35%) is the only failure. Three compounding errors dominate: compound instrument classification (IAS 32 fixed-for-fixed test), flat PMT on an uneven IFRS 16 lease (HP CF-register needed), and a DTA schedule submitted instead of a permanent-difference rate reconciliation — Q(h) alone carries 33 marks. September target: 59%."},
+    {marker:"AUC",mc:"#60a5fa",border:"#60a5fa",text:"Auditing & Control (75.5/120 = 62.9%) — re-marked, +1 corrected from Q2(c). The 11-mark blind spot was Q2(a): a positive ISA 220 assessment was given when the question required identifying red flags — S75, S90(2)(b), CPC S523, sold ill animal, JSE listing incentive. September target: 48.8%."},
+    {marker:"TAX",mc:"#4ade80",border:"#4ade80",text:"Taxation (71.5/120 = 59.6%) — re-marked, +2.5 corrected from original 69/120. Connected person threshold confusion cost ~11 marks: s1 general = >50%, s31 transfer pricing = >20%, par 56 clogged loss = >70% — never mix these. September target: 50.3%."},
+    {marker:"MAF",mc:"#fbbf24",border:"#fbbf24",text:"Management Accounting & Finance (64/120 = 53.3%) — newly marked, passes. Q2(a) TP range lost 12 marks from one input error (5,000 vs 4,000 slabs). Q2(e) FCF valuation lost 7 marks: WACC correct but wrong FCF derivation and terminal value — used g alone instead of (WACC − g). September target: 48.5%."},
+    {marker:"SEP",mc:"#ffffff",border:"#ffffff",text:"September priority order: (1) FAC — 59% needed, most work required; fix IAS 32 + IFRS 16 + rate recon before anything else. (2) TAX — 50.3% needed, the connected-person threshold table must be memorised cold. (3) AUC and MAF — ~49% each, protect the pass. October entrance is secure across all four subjects — all HYMs are above 25%."}
+  ];
+  return `
+    <div class="ph">
+      <span class="ph-sup">June 2026 Analysis</span>
+      <div class="ph-h1">Results & September Roadmap</div>
+      <span class="ph-sub">Per-module analysis with actionable September priorities</span>
+    </div>
+    <div class="insights">
+      ${items.map(it=>`<div class="insight" style="border-left-color:${it.border}">
+        <div class="insight-marker" style="background:${it.mc}18;border-color:${it.mc}35;color:${it.mc}">${it.marker}</div>
+        <span class="insight-text">${it.text}</span>
+      </div>`).join('')}
+    </div>`;
+}
+
+/* ─── GRADER ─── */
+function renderGrader() {
+  return `
+    <div class="ph">
+      <span class="ph-sup">AI-Powered · Strict CTA Marking</span>
+      <div class="ph-h1">Exam Grader</div>
+      <span class="ph-sub">Paste a question and student answer — graded against official CTA/PGDA memo standards</span>
+    </div>
+    <div class="grader-grid">
+      <div class="glass g-form">
+        <div class="shimmer"></div>
+        <div class="api-note">Calls Anthropic API directly. A CORS browser extension (e.g. "CORS Unblock") may be required.</div>
+        <div class="g-group"><label class="g-label">API Key</label><input type="password" class="g-input" id="g-key" placeholder="sk-ant-..."></div>
+        <div class="g-group"><label class="g-label">Subject</label><select class="g-select" id="g-subj">${MODS.map(m=>`<option value="${m.id}">${m.id} — ${m.name}</option>`).join('')}</select></div>
+        <div class="g-group"><label class="g-label">Question / Context</label><textarea class="g-ta" id="g-q" rows="4" placeholder="Paste the exam question or scenario here"></textarea></div>
+        <div class="g-group"><label class="g-label">Memo / Model Answer <span class="opt">(optional)</span></label><textarea class="g-ta" id="g-memo" rows="4" placeholder="Paste the official memo solution"></textarea></div>
+        <div class="g-group"><label class="g-label">Student Answer</label><textarea class="g-ta" id="g-ans" rows="6" placeholder="Paste the student answer here"></textarea></div>
+        <div id="g-err" class="g-err" style="display:none"></div>
+        <button class="g-btn" id="g-btn" onclick="doGrade()">Grade Answer</button>
+      </div>
+      <div id="g-result">
+        <div class="glass r-empty"><div class="shimmer"></div>
+          <span class="r-empty-icon">— —</span>
+          <span class="r-empty-t">No results yet</span>
+          <span class="r-empty-s">Fill in the form and click Grade Answer</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ─── GRADE LOGIC ─── */
+async function doGrade() {
+  const key=document.getElementById('g-key').value.trim(),q=document.getElementById('g-q').value.trim(),
+        memo=document.getElementById('g-memo').value.trim(),ans=document.getElementById('g-ans').value.trim(),
+        subj=document.getElementById('g-subj').value,errEl=document.getElementById('g-err');
+  if(!key){errEl.textContent='Enter your Anthropic API key.';errEl.style.display='block';return;}
+  if(!q||!ans){errEl.textContent='Provide question context and student answer.';errEl.style.display='block';return;}
+  errEl.style.display='none';
+  const btn=document.getElementById('g-btn');
+  btn.disabled=true;btn.textContent='Marking...';
+  document.getElementById('g-result').innerHTML=`<div class="glass r-empty"><div class="shimmer"></div><span class="r-empty-t">Marking against memo...</span></div>`;
+  try{
+    const subjName=MODS.find(m=>m.id===subj)?.name||subj;
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,
+        system:`You are a strict academic exam marker for the ${USER_SETTINGS.program||'academic'} program. Grade objectively against the provided mark scheme or question intent. Return ONLY valid JSON — no markdown:\n{"totalEarned":number,"totalAvailable":number,"percentage":number,"grade":"Pass"|"Fail","items":[{"criterion":string,"awarded":number,"available":number,"comment":string}],"summary":string,"fixes":[string]}`,
+        messages:[{role:'user',content:`Subject: ${subjName}\n\nQUESTION:\n${q}\n\n${memo?`MEMO:\n${memo}\n\n`:''}STUDENT ANSWER:\n${ans}\n\nMark strictly.`}]})
+    });
+    if(!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    const data=await res.json();
+    const r=JSON.parse((data.content?.find(b=>b.type==='text')?.text||'').replace(/```(?:json)?/gi,'').trim());
+    const pct=r.percentage,col=cv(pct);
+    document.getElementById('g-result').innerHTML=`<div class="glass" style="padding:1.5rem"><div class="shimmer"></div>
+      <div class="r-header"><div><span class="r-score" style="color:${col};text-shadow:0 0 20px ${col}40">${r.totalEarned}/${r.totalAvailable}</span><span class="r-pct">${pct?.toFixed(1)}%</span></div>${pill(r.grade?.toLowerCase()||'fail')}</div>
+      ${(r.items||[]).map(it=>{const pc=it.available>0?(it.awarded/it.available)*100:0;return`<div class="r-item"><div><div class="r-crit">${it.criterion}</div><div class="r-comment">${it.comment}</div></div><span class="r-item-score" style="color:${cv(pc)}">${it.awarded}/${it.available}</span></div>`;}).join('')}
+      ${r.summary?`<div class="r-summary">${r.summary}</div>`:''}
+      ${r.fixes?.length?`<div class="r-fixes-t">Priority Fixes</div>${r.fixes.map(f=>`<div class="r-fix"><span class="r-fix-arr">&#8594;</span><span class="r-fix-txt">${f}</span></div>`).join('')}`:''}</div>`;
+  }catch(e){
+    errEl.textContent='Grading error: '+e.message;errEl.style.display='block';
+    document.getElementById('g-result').innerHTML=`<div class="glass r-empty"><div class="shimmer"></div><span class="r-empty-t">Grading failed</span><span class="r-empty-s">Check API key and CORS settings</span></div>`;
+  }
+  btn.disabled=false;btn.textContent='Grade Answer';
+}
+
+/* ─── SEP UPDATE ─── */
+function updateSep(val) {
+  sepVal=val;
+  document.getElementById('sep-big').textContent=val+"%";
+  MODS.forEach(m=>{
+    const ym=ymOf(m,val),clears=ym>=50;
+    const el=document.getElementById(`sep-r-${m.id}`);if(!el)return;
+    el.className=`sep-r${clears?" clears":""}`;
+    const ymEl=document.getElementById(`sep-ym-${m.id}`);
+    if(ymEl){ymEl.style.color=cv(ym);ymEl.textContent=f1(ym);ymEl.style.textShadow=`0 0 10px ${cv(ym)}36`;}
+    const pb=el.querySelector('.pbar-fill');
+    if(pb){pb.style.width=Math.min(Math.max(ym,0),100)+"%";pb.style.background=`linear-gradient(90deg,${cv(ym)}80,${cv(ym)})`;pb.style.boxShadow=`0 0 7px ${cv(ym)}45`;}
+    const pbg=el.querySelector('.pbar');if(pbg)pbg.style.background=clears?"rgba(74,222,128,0.10)":"rgba(255,255,255,0.09)";
+    const st=document.getElementById(`sep-status-${m.id}`);
+    if(st){st.textContent=clears?"Clears 50% year mark":`Needs ${sepFor(m).toFixed(0)}% in Sep to reach 50%`;st.style.color=clears?"#4ade80":"var(--muted)";st.style.fontWeight=clears?600:400;}
+  });
+}
+
+/* ─── CHART ─── */
+function initChart() {
+  const ctx=document.getElementById('perfChart');if(!ctx)return;
+  if(window._chart)window._chart.destroy();
+  window._chart=new Chart(ctx,{type:'line',
+    data:{labels:["Feb","Apr","Jun","Sep"],
+      datasets:MODS.map(m=>({label:m.id,data:[m.feb,m.apr,m.jun,sepVal],
+        borderColor:m.color,backgroundColor:m.color+'10',borderWidth:2.5,
+        pointRadius:5,pointBackgroundColor:m.color,
+        pointBorderColor:'rgba(255,255,255,0.25)',pointBorderWidth:1.5,
+        tension:0.3,fill:false}))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{backgroundColor:'rgba(0,4,18,0.94)',borderColor:'rgba(255,255,255,0.13)',borderWidth:1,
+          titleColor:'#fff',bodyColor:'rgba(255,255,255,0.55)',
+          callbacks:{label:c=>` ${c.dataset.label}: ${c.raw!=null?c.raw.toFixed(1)+"%":"—"}`}}},
+      scales:{
+        y:{min:0,max:100,grid:{color:'rgba(255,255,255,0.045)'},
+          ticks:{color:'rgba(255,255,255,0.28)',font:{size:10,family:"'JetBrains Mono',monospace"},callback:v=>v+"%"},
+          border:{display:false}},
+        x:{grid:{display:false},
+          ticks:{color:'rgba(255,255,255,0.35)',font:{size:10,weight:'600'}},
+          border:{display:false}}}},
+    plugins:[{id:'refline',afterDraw(chart){
+      const{ctx,chartArea:{left,right},scales:{y}}=chart;
+      const y50=y.getPixelForValue(50);
+      ctx.save();ctx.strokeStyle='rgba(255,255,255,0.14)';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
+      ctx.beginPath();ctx.moveTo(left,y50);ctx.lineTo(right,y50);ctx.stroke();ctx.restore();
+    }}]});
+}
+
+/* ─── STUDY SCHEDULE ─── */
+function renderSchedule() {
+  const today   = new Date();
+  const todayMs = today.getTime();
+  const LS_KEY  = 'cta_sched_v2';
+  let done = {};
+  try { done = JSON.parse(localStorage.getItem(LS_KEY)||'{}'); } catch(e){}
+
+  const SCHED = [
+    {id:'recess', type:'break',
+     label:'Winter Recess',
+     dates:'Jun 19 – Jul 5',
+     start:new Date('2026-06-19'), end:new Date('2026-07-05'),
+     note:'Self-study period — no formal classes. Revise all completed modules across every subject.',
+     mods:{
+       FAC:'Revise Mods 1–22 — cash flow measurement, FI, IFRS 2, deferred tax, consolidations up to here',
+       AUC:'Revise Mods 1–9 — ISAs, risk assessment, controls testing, substantive procedures, completion',
+       TAX:'Revise LG 401–408 — residency rules, CGT, VAT, allowances, provisional tax',
+       MAF:'Revise Mods A–6 — costing systems, strategy, ERM, capital budgeting, valuations, treasury'
+     }
+    },
+    {id:'w0706', type:'study',
+     label:'Week 12 — Term 3 Begins',
+     dates:'Jul 6 – 12',
+     start:new Date('2026-07-06'), end:new Date('2026-07-12'),
+     mods:{
+       FAC:'Mod 23: Groups revision + Mod 24: Intragroup transactions (pre-recorded) · Live online Tue 7',
+       AUC:'Mod 10: Companies Act — Live online Tue 7 (12:15–13:45) · June assessment feedback',
+       TAX:'Self-reflection recording Mon 6 · LG 409: Individuals — Online class Tue 7',
+       MAF:'Topic 7: Cost of capital & capital structure — Live online Tue 7'
+     }
+    },
+    {id:'w0713', type:'study',
+     label:'Week 13',
+     dates:'Jul 13 – 19',
+     start:new Date('2026-07-13'), end:new Date('2026-07-19'),
+     mods:{
+       FAC:'Mod 25 & 26: IFRS 3 + IAS 38 · Mod 27: IAS 28 (pre-recorded) · Contact class Tue 14',
+       AUC:'Mod 10: Companies Act (continued) · Contact class Tue 14 (9:45–11:15)',
+       TAX:'LG 409: Individuals (continued) · Contact class Tue 14',
+       MAF:'Topic 8: Financing decisions incl. asset-specific finance · Venue Tue 14'
+     }
+    },
+    {id:'w0720', type:'study',
+     label:'Week 14',
+     dates:'Jul 20 – 26',
+     start:new Date('2026-07-20'), end:new Date('2026-07-26'),
+     mods:{
+       FAC:'Mod 28: Group statements, IAS 27 & 28 — first 3 examples (pre-recorded) · Contact class Tue 21',
+       AUC:'Mod 10: Companies Act (concluded) · Contact class Tue 20 (8:00–9:30)',
+       TAX:'LG 410: Retirement benefits · Contact Tue 21 · Group class Wed 22 (Individuals recap)',
+       MAF:'Topic 9: Analysis & Interpretation · Venue Tue 21 · Group class feedback Wed 22'
+     }
+    },
+    {id:'w0727', type:'study',
+     label:'Week 15',
+     dates:'Jul 27 – Aug 2',
+     start:new Date('2026-07-27'), end:new Date('2026-08-02'),
+     mods:{
+       FAC:'Mod 28: Group statements, IAS 27 & 28 — second 4 examples (pre-recorded) · Contact class Tue 28',
+       AUC:'Mod 11: King IV — Contact class Tue 27 (14:00–15:30) · Group class + PVAAs Wed 29',
+       TAX:'LG 411: Employees Tax — Contact class Tue 29',
+       MAF:'Topic 9: Analysis & Interpretation (continued) · Venue Tue 28 · Online integrated class Wed 29'
+     }
+    },
+    {id:'w0803', type:'study',
+     label:'Week 16',
+     dates:'Aug 3 – 9',
+     start:new Date('2026-08-03'), end:new Date('2026-08-09'),
+     mods:{
+       FAC:'Mod 29: IFRS 10, 11, 12 · Contact class Tue 4 · PVAA integrated ACC & TAX live online Wed 5',
+       AUC:'Mod 12: Professional ethics (CPC & APA) · Contact class Tue 4 (12:15–13:45) · PVAA group class Wed',
+       TAX:'LG 412: Trusts · Contact class Tue 4 · Accounting & Tax integrated PVAA Wed 5',
+       MAF:'Analysis: Lecture & discussion · Venue Tue 4'
+     }
+    },
+    {id:'w0810', type:'study',
+     label:'Week 17',
+     dates:'Aug 10 – 16',
+     start:new Date('2026-08-10'), end:new Date('2026-08-16'),
+     mods:{
+       FAC:'Contact class Tue 11 · Group class Wed 12 · Mod 30: Group statements ch 17 (pre-recorded)',
+       AUC:'Mod 13: Business Ethics — Live online Tue 10 (9:45–11:15) · Group class + Application Qs Wed',
+       TAX:'LG 413: Donations & Estates — Online class Tue 11',
+       MAF:'Topic 10: Mergers & Acquisitions — Online Tue 11'
+     }
+    },
+    {id:'w0817', type:'study',
+     label:'Week 18 — Last Week Before Break',
+     dates:'Aug 17 – 22',
+     start:new Date('2026-08-17'), end:new Date('2026-08-22'),
+     mods:{
+       FAC:'Contact class Tue 18 · Mod 31: Loose topics & Current affairs + Integrated reporting (pre-recorded)',
+       AUC:'Revision — Contact class Tue 17 (8:00–9:30)',
+       TAX:'LG 414: Tax Avoidance + LG 415: Tax Administration · Contact Tue 18 · Sep prep group class Wed 19',
+       MAF:'Topic F: Activity Based Costing · Venue Tue 18 · Practical group class Wed 19'
+     }
+    },
+    {id:'break-sep', type:'exam-prep',
+     label:'Study Break — September Exam Preparation',
+     dates:'Aug 23 – Sep 6',
+     start:new Date('2026-08-23'), end:new Date('2026-09-06'),
+     note:'15 days. Simulate full past papers daily under timed conditions. Prioritise FAC (failed Jun). Protect AUC, TAX, MAF passes.',
+     mods:{
+       FAC:'Revise Mods 1–31 · Focus: IAS 32 compound instruments, IFRS 16 uneven CFs, deferred tax, groups',
+       AUC:'Revise Mods 1–13 · Focus: ISA 220 red flags, CPC S523, King IV, opinion type selection',
+       TAX:'Revise LG 401–415 · Focus: connected persons, s22(8) recoupment, imported VAT, tax avoidance',
+       MAF:'Revise Topics 1–10 & A–F · Focus: TP range, FCF, terminal value, M&A'
+     }
+    },
+    {id:'sep-exam', type:'exam',
+     label:'SEPTEMBER INTEGRATED ASSESSMENTS',
+     dates:'Sep 7 – 10',
+     start:new Date('2026-09-07'), end:new Date('2026-09-10'),
+     note:'4 integrated papers × 120 marks each. Mon 7 · Tue 8 · Wed 9 · Thu 10 — all modules 1–31 in scope.'
+    },
+    {id:'w0914', type:'study',
+     label:'Week 19 — Post-September',
+     dates:'Sep 14 – 20',
+     start:new Date('2026-09-14'), end:new Date('2026-09-20'),
+     mods:{
+       FAC:'Mod 32: Cash Flow Statement intro ch 18 · Contact class Tue 15 · PVAA class Wed 16',
+       AUC:'September feedback · Contact class Tue 14 (14:00–15:30) · Revision group class Wed',
+       TAX:'LG 416: Share owners — Contact class Tue 15',
+       MAF:'Topic 11: Working Capital · Topic 12: Dividend policy · Topic 13: Businesses in distress · Venue Tue 15'
+     }
+    },
+    {id:'w0921', type:'study',
+     label:'Week 20 — Final Formal Week',
+     dates:'Sep 21 – 27',
+     start:new Date('2026-09-21'), end:new Date('2026-09-27'),
+     mods:{
+       FAC:'Mod 32: Cash flow statements question · Sep assessment feedback · Send-off lecture Tue 22',
+       AUC:'Forvis Mazars: Digital acumen — Contact class Tue 22 (12:15–13:45)',
+       TAX:'LG 416: Share owners (concluded) · Contact Tue 22 · October prep group class Wed 23',
+       MAF:'Revision · Venue Tue 22 · Group practical class Wed 23'
+     }
+    },
+    {id:'break-oct', type:'exam-prep',
+     label:'Study Break — October Exam Preparation',
+     dates:'Sep 28 – Oct 18',
+     start:new Date('2026-09-28'), end:new Date('2026-10-18'),
+     note:'21 days. Final push — all 32 FAC modules · all 16 TAX learner guides · all 13 AUC modules · all MAF topics.',
+     mods:{
+       FAC:'Revise ALL Mods 1–32 · Focus: consolidated FS, cash flows, groups, IFRS 3, IAS 28, IAS 7',
+       AUC:'Revise ALL Mods 1–13 + digital acumen · Integrated assessment question style',
+       TAX:'Revise ALL LG 401–416 · Focus: share owners, whole-year integration, Oct paper format',
+       MAF:'Revise ALL topics 1–13 & A–F · Focus: working capital, dividend policy, M&A, ABC'
+     }
+    },
+    {id:'oct-exam', type:'exam',
+     label:'OCTOBER INTEGRATED EXAMS',
+     dates:'Oct 19 – 22',
+     start:new Date('2026-10-19'), end:new Date('2026-10-22'),
+     note:'4 integrated papers. Mon 19 · Tue 20 · Wed 21 · Thu 22 — entire year scope, all modules.'
+    }
+  ];
+
+  const studyWeeks  = SCHED.filter(w => w.type === 'study' || w.type === 'break' || w.type === 'exam-prep');
+  const doneCount   = studyWeeks.filter(w => done[w.id]).length;
+  const totalStudy  = studyWeeks.length;
+  const pct         = totalStudy ? Math.round(doneCount / totalStudy * 100) : 0;
+  const sepDays     = Math.max(0, Math.floor((new Date('2026-09-07') - today) / 86400000));
+  const octDays     = Math.max(0, Math.floor((new Date('2026-10-19') - today) / 86400000));
+
+  let currentId = null;
+  for(const w of SCHED){
+    if(todayMs >= w.start.getTime() && todayMs <= w.end.getTime() + 86400000){ currentId = w.id; break; }
+  }
+
+  const MC = {FAC:'#fb7185', AUC:'#60a5fa', TAX:'#4ade80', MAF:'#fbbf24'};
+
+  function weekCard(w){
+    const isCurrent = w.id === currentId;
+    const isDone    = !!done[w.id];
+    const isPast    = w.end.getTime() < todayMs && !isCurrent;
+
+    let bg='rgba(255,255,255,0.03)', brd='rgba(255,255,255,0.08)', rim='rgba(255,255,255,0.12)', lc='var(--muted)', shadow='';
+    if(w.type==='exam')       { bg='rgba(251,113,133,0.07)'; brd='rgba(251,113,133,0.22)'; rim='rgba(251,113,133,0.38)'; lc='#fb7185'; }
+    else if(w.type==='exam-prep') { bg='rgba(251,191,36,0.06)'; brd='rgba(251,191,36,0.22)'; rim='rgba(251,191,36,0.35)'; lc='#fbbf24'; }
+    else if(isCurrent)        { bg='rgba(96,165,250,0.08)'; brd='rgba(96,165,250,0.28)'; rim='rgba(96,165,250,0.45)'; lc='#60a5fa'; shadow='box-shadow:0 0 0 1.5px rgba(96,165,250,0.25),0 0 22px rgba(96,165,250,0.10),inset 0 1.5px 0 rgba(96,165,250,0.20);'; }
+    else if(isDone)           { bg='rgba(74,222,128,0.035)'; brd='rgba(74,222,128,0.14)'; rim='rgba(74,222,128,0.22)'; }
+    else if(w.type==='break') { bg='rgba(255,255,255,0.02)'; }
+
+    let statusDot = '';
+    if(isDone)              statusDot = `<span style="color:#4ade80;font-size:1rem;line-height:1">✓</span>`;
+    else if(isCurrent)      statusDot = `<span style="width:9px;height:9px;border-radius:50%;background:#fbbf24;display:inline-block;box-shadow:0 0 10px #fbbf2480;flex-shrink:0"></span>`;
+    else if(w.type==='exam') statusDot = `<span style="color:#fb7185;font-size:0.8rem;font-weight:800;line-height:1">!</span>`;
+    else if(w.type==='exam-prep') statusDot = `<span style="color:#fbbf24;font-size:0.7rem;font-weight:800;line-height:1">~</span>`;
+    else if(isPast)         statusDot = `<span style="width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,0.15);display:inline-block;flex-shrink:0"></span>`;
+    else                    statusDot = `<span style="width:9px;height:9px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.22);display:inline-block;flex-shrink:0"></span>`;
+
+    const canToggle = w.type !== 'exam';
+    const btn = canToggle
+      ? `<button onclick="toggleWeek('${w.id}')" style="font-size:0.52rem;padding:0.22rem 0.58rem;border-radius:6px;border:1px solid ${isDone?'rgba(74,222,128,0.3)':'rgba(255,255,255,0.12)'};background:${isDone?'rgba(74,222,128,0.12)':'rgba(255,255,255,0.05)'};color:${isDone?'#4ade80':'var(--faint)'};cursor:pointer;font-family:var(--mono);font-weight:700;white-space:nowrap">${isDone?'DONE':'MARK DONE'}</button>`
+      : '';
+
+    const modsHtml = w.mods ? Object.entries(w.mods).map(([id,topic])=>`
+      <div style="display:grid;grid-template-columns:36px 1fr;gap:0.45rem;align-items:baseline;margin-bottom:0.35rem">
+        <span style="font-size:0.5rem;font-weight:800;color:${MC[id]};text-shadow:0 0 10px ${MC[id]}40;font-family:var(--mono)">${id}</span>
+        <span style="font-size:0.57rem;color:${isPast||isDone?'var(--faint)':'var(--muted)'};line-height:1.55">${topic}</span>
+      </div>`).join('') : '';
+
+    const noteHtml = w.note
+      ? `<div style="font-size:0.57rem;color:${w.type==='exam'?'#fb7185':w.type==='exam-prep'?'#fbbf24':'var(--muted)'};line-height:1.58;margin-top:0.55rem;padding-top:0.55rem;border-top:1px solid ${brd}">${w.note}</div>`
+      : '';
+
+    return `
+    <div style="border-radius:14px;padding:0.95rem 1.1rem;background:${bg};border:1px solid ${brd};border-top-color:${rim};${shadow}margin-bottom:0.55rem;${isDone?'opacity:0.58':''}transition:opacity 0.2s">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${w.mods?'0.65rem':'0'}">
+        <div style="display:flex;align-items:center;gap:0.55rem">
+          <div style="width:18px;display:flex;justify-content:center;flex-shrink:0">${statusDot}</div>
+          <div>
+            <div style="font-size:0.63rem;font-weight:700;color:${lc};${isCurrent?'text-shadow:0 0 14px rgba(96,165,250,0.45)':''}">${w.label}${isCurrent?' <span style="font-size:0.5rem;font-weight:800;color:#fbbf24;font-family:var(--mono);vertical-align:middle"> CURRENT</span>':''}</div>
+            <div style="font-family:var(--mono);font-size:0.53rem;color:var(--faint);margin-top:0.08rem">${w.dates}</div>
+          </div>
+        </div>
+        ${btn}
+      </div>
+      ${modsHtml}${noteHtml}
+    </div>`;
+  }
+
+  return `
+    <div class="ph">
+      <span class="ph-sup">UJ CTA PGDA 2026 · Official Programme Timetable</span>
+      <div class="ph-h1">Study Schedule</div>
+      <span class="ph-sub">Week-by-week tracker — topics pulled from the official module schedules</span>
+    </div>
+
+    <div class="glass" style="padding:1.1rem 1.3rem;margin-bottom:1rem">
+      <div class="shimmer"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:0.85rem">
+        <div>
+          <div style="font-size:0.53rem;color:var(--faint);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.18rem">Periods Completed</div>
+          <div style="font-family:var(--mono);font-size:1.3rem;font-weight:800;color:#4ade80">${doneCount}<span style="font-size:0.7rem;opacity:0.45"> / ${totalStudy}</span></div>
+        </div>
+        <div>
+          <div style="font-size:0.53rem;color:var(--faint);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.18rem">To September Exams</div>
+          <div style="font-family:var(--mono);font-size:1.3rem;font-weight:800;color:${sepDays<14?'#fb7185':sepDays<30?'#fbbf24':'#60a5fa'}">${sepDays}<span style="font-size:0.7rem;opacity:0.45"> days</span></div>
+        </div>
+        <div>
+          <div style="font-size:0.53rem;color:var(--faint);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.18rem">To October Exams</div>
+          <div style="font-family:var(--mono);font-size:1.3rem;font-weight:800;color:#fbbf24">${octDays}<span style="font-size:0.7rem;opacity:0.45"> days</span></div>
+        </div>
+      </div>
+      <div style="height:6px;border-radius:99px;background:rgba(255,255,255,0.09);overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#4ade8060,#4ade80);border-radius:99px;box-shadow:0 0 10px rgba(74,222,128,0.35)"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:0.28rem">
+        <span style="font-size:0.5rem;color:var(--faint)">${pct}% of study periods marked complete</span>
+        <div style="display:flex;gap:0.7rem">
+          <span style="font-size:0.5rem;color:#fb7185">Exam</span>
+          <span style="font-size:0.5rem;color:#fbbf24">Study break / exam prep</span>
+          <span style="font-size:0.5rem;color:#60a5fa">Current week</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:0.5rem;margin-bottom:0.9rem;flex-wrap:wrap">
+      ${Object.entries(MC).map(([id,c])=>`<div style="display:flex;align-items:center;gap:0.35rem;background:${c}10;border:1px solid ${c}22;border-radius:7px;padding:0.25rem 0.55rem"><span style="width:6px;height:6px;border-radius:50%;background:${c};display:inline-block"></span><span style="font-size:0.53rem;font-weight:800;color:${c};font-family:var(--mono)">${id}</span></div>`).join('')}
+      <div style="margin-left:auto;display:flex;align-items:center">
+        <span style="font-size:0.5rem;color:var(--faint)">Click MARK DONE to track · state persists across sessions</span>
+      </div>
+    </div>
+
+    ${SCHED.map(w=>weekCard(w)).join('')}
+  `;
+}
+
+function toggleWeek(id){
+  const LS_KEY='cta_sched_v2';
+  let done={};
+  try{done=JSON.parse(localStorage.getItem(LS_KEY)||'{}');}catch(e){}
+  if(done[id]) delete done[id]; else done[id]=true;
+  localStorage.setItem(LS_KEY,JSON.stringify(done));
+  switchTab('schedule');
+}
+
+
+/* ─── TASK TRACKER ─── */
+function renderTracker() {
+  const LS_KEY = 'ujCTAProgress_v2';
+  let savedProgress = {};
+  try { savedProgress = JSON.parse(localStorage.getItem(LS_KEY)||'{}'); } catch(e){}
+
+  const studySchedule = [
+    { weekNumber:1, dates:'Feb 9 – Feb 15', tasks:[
+      {id:'w1t1', mod:'auditing',   name:'Auditing',              desc:'Mod 1: Intro to Auditing, Assurance & Governance',          detail:'Moodle steps + Watch Auditing Approach video',        type:'self-study'},
+      {id:'w1t2', mod:'finance',    name:'Financial Management',  desc:'Introduction, Start-up assessment feedback',                 detail:'Venue based lecture',                                 type:'live'},
+      {id:'w1t3', mod:'accounting', name:'Accounting',            desc:'Approach in Accounting, Conceptual Framework (Mod 1)',       detail:'Live contact session',                                type:'live'},
+      {id:'w1t4', mod:'tax',        name:'Taxation',              desc:'Undergraduate knowledge assessment (30 marks)',              detail:'30 Marks',                                            type:'assessment'}
+    ]},
+    { weekNumber:2, dates:'Feb 16 – Feb 22', tasks:[
+      {id:'w2t1', mod:'auditing',   name:'Auditing',              desc:'Mod 2: Risk management & UN sustainability goals',           detail:'Moodle steps + Contact class Tuesday',                type:'live'},
+      {id:'w2t2', mod:'finance',    name:'Financial Management',  desc:'Cost behavior; Direct & Absorption (A)',                     detail:'Venue based lecture',                                 type:'live'},
+      {id:'w2t3', mod:'accounting', name:'Accounting',            desc:'IAS 37, IAS 19, IAS 10 (Mod 3) + Deferred Tax (Mod 4)',     detail:'Live contact + Pre-recorded',                         type:'live'},
+      {id:'w2t4', mod:'tax',        name:'Taxation',              desc:'Court Cases (LG 401)',                                       detail:'1 Week study + Contact class',                        type:'self-study'}
+    ]},
+    { weekNumber:3, dates:'Feb 23 – Mar 1', tasks:[
+      {id:'w3t1', mod:'auditing',   name:'Auditing',              desc:'Mod 3: Understanding your ISAs',                             detail:'Moodle steps + Watch Studying ISAs video',            type:'self-study'},
+      {id:'w3t2', mod:'finance',    name:'Financial Management',  desc:'Strategy & Enterprise Risk Management (B)',                  detail:'Venue based lecture',                                 type:'live'},
+      {id:'w3t3', mod:'accounting', name:'Accounting',            desc:'IAS 36 (Mod 7)',                                             detail:'Pre-recorded + Live contact',                         type:'self-study'},
+      {id:'w3t4', mod:'tax',        name:'Taxation',              desc:'Residence legislation (LG 403)',                             detail:'2 Weeks study + Contact class',                       type:'self-study'}
+    ]},
+    { weekNumber:4, dates:'Mar 2 – Mar 8', tasks:[
+      {id:'w4t1', mod:'auditing',   name:'Auditing',              desc:'Mod 4: Pre-engagement and planning',                         detail:'Moodle steps + Contact class',                        type:'live'},
+      {id:'w4t2', mod:'finance',    name:'Financial Management',  desc:'Capital budgeting & Risk/return/portfolio',                  detail:'Venue based lecture',                                 type:'live'},
+      {id:'w4t3', mod:'accounting', name:'Accounting',            desc:'IFRS 5 (Mod 8) + Revenue (Mod 9)',                           detail:'Live contact + Pre-recorded',                         type:'live'},
+      {id:'w4t4', mod:'tax',        name:'Taxation',              desc:'VAT (LG 402)',                                               detail:'2 Weeks study + Contact class',                       type:'self-study'}
+    ]},
+    { weekNumber:5, dates:'Mar 9 – Mar 15', tasks:[
+      {id:'w5t1', mod:'auditing',   name:'Auditing',              desc:'Mod 5: Internal controls, IT & Test of Controls',           detail:'Moodle steps + Contact class',                        type:'live'},
+      {id:'w5t2', mod:'finance',    name:'Financial Management',  desc:'Valuations (4)',                                             detail:'Venue based lecture',                                 type:'live'},
+      {id:'w5t3', mod:'accounting', name:'Accounting',            desc:'Revenue continued (Mod 9)',                                  detail:'Pre-recorded + Live contact',                         type:'self-study'},
+      {id:'w5t4', mod:'tax',        name:'Taxation',              desc:'Allowances and Inclusions (LG 404)',                         detail:'2 Weeks study + Contact class',                       type:'self-study'}
+    ]},
+    { weekNumber:6, dates:'Mar 16 – Mar 22', tasks:[
+      {id:'w6t1', mod:'auditing',   name:'Auditing',              desc:'Mod 5 continued: Internal controls',                         detail:'Moodle steps + Group class PVAA',                     type:'live'},
+      {id:'w6t2', mod:'finance',    name:'Financial Management',  desc:'Treasury & derivatives (5)',                                 detail:'Venue based lecture',                                 type:'live'},
+      {id:'w6t3', mod:'accounting', name:'Accounting',            desc:'IFRS 13, IAS 8 (Mod 10 & 11)',                               detail:'Pre-recorded + Live contact',                         type:'self-study'},
+      {id:'w6t4', mod:'tax',        name:'Taxation',              desc:'Allowances continued (LG 404)',                              detail:'Contact class Tuesday',                               type:'live'}
+    ]},
+    { weekNumber:7, dates:'Mar 23 – Mar 29', tasks:[
+      {id:'w7t1', mod:'auditing',   name:'Auditing',              desc:'Mod 6: Public Sector Audit',                                 detail:'Moodle steps + Revision for April',                  type:'self-study'},
+      {id:'w7t2', mod:'finance',    name:'Financial Management',  desc:'STUDY BREAK (28 Mar – 6 Apr)',                               detail:'Prepare for April Assessments',                       type:'self-study'},
+      {id:'w7t3', mod:'accounting', name:'Accounting',            desc:'IAS 2, 23, 24, 21 (Mod 12–15) + Deferred Tax (Mod 16)',     detail:'Live contact + Pre-recorded',                         type:'live'},
+      {id:'w7t4', mod:'tax',        name:'Taxation',              desc:'APRIL ASSESSMENT PREP (LG 401–404)',                         detail:'LG 401 to 404',                                       type:'assessment'}
+    ]},
+    { weekNumber:8, dates:'Apr 7 – Apr 17', tasks:[
+      {id:'w8t1', mod:'all',        name:'All Modules',           desc:'APRIL ASSESSMENTS',                                          detail:'Tax (7th), Audit (10th), Fin (14th), Acc (17th)',     type:'assessment'}
+    ]},
+    { weekNumber:9, dates:'Apr 28 – May 4', tasks:[
+      {id:'w9t1', mod:'auditing',   name:'Auditing',              desc:'Mod 7: Substantive Procedures',                              detail:'Moodle steps + Contact class',                        type:'live'},
+      {id:'w9t2', mod:'finance',    name:'Financial Management',  desc:'Short term decision making & Optimisation (B)',              detail:'Venue based lecture',                                 type:'live'},
+      {id:'w9t3', mod:'accounting', name:'Accounting',            desc:'IFRS 16 Leases (Mod 17 & 18)',                               detail:'Pre-recorded + Live contact',                         type:'self-study'},
+      {id:'w9t4', mod:'tax',        name:'Taxation',              desc:'CGT (LG 405)',                                               detail:'2 Weeks study + Contact class',                       type:'self-study'}
+    ]},
+    { weekNumber:10, dates:'May 5 – May 11', tasks:[
+      {id:'w10t1', mod:'auditing',  name:'Auditing',              desc:'Mod 7 continued: Substantive Procedures',                   detail:'Moodle steps + Group class',                          type:'live'},
+      {id:'w10t2', mod:'finance',   name:'Financial Management',  desc:'Standard costing (C)',                                       detail:'Venue based lecture',                                 type:'live'},
+      {id:'w10t3', mod:'accounting',name:'Accounting',            desc:'Financial Instruments IAS 32 & IFRS 9 (Mod 19 & 20)',       detail:'Pre-recorded + Live contact',                         type:'self-study'},
+      {id:'w10t4', mod:'tax',       name:'Taxation',              desc:'Corporate re-orgs & Business combinations (LG 406 & 407)', detail:'1/2 Week each + Contact class',                       type:'self-study'}
+    ]},
+    { weekNumber:11, dates:'May 12 – May 18', tasks:[
+      {id:'w11t1', mod:'auditing',  name:'Auditing',              desc:'Mod 8: Completion of the audit',                             detail:'Moodle steps + Contact class',                        type:'live'},
+      {id:'w11t2', mod:'finance',   name:'Financial Management',  desc:'Transfer Pricing, Performance Mng & Budgets (D & E)',        detail:'Venue based lecture',                                 type:'live'},
+      {id:'w11t3', mod:'accounting',name:'Accounting',            desc:'IFRS 9 Impairment & IFRS 2 (Mod 21 & 22)',                  detail:'Pre-recorded + Live contact',                         type:'self-study'},
+      {id:'w11t4', mod:'tax',       name:'Taxation',              desc:'Provisional Tax (LG 408)',                                   detail:'1 Week study + Contact class',                        type:'self-study'}
+    ]},
+    { weekNumber:12, dates:'May 19 – Jun 8', tasks:[
+      {id:'w12t1', mod:'auditing',  name:'Auditing',              desc:'Mod 9: Auditing & Accounting Integration + Revision',        detail:'Moodle steps + Revision',                             type:'self-study'},
+      {id:'w12t2', mod:'finance',   name:'Financial Management',  desc:'STUDY BREAK — Prepare for June Assessments',                 detail:'Prepare for June Tests',                              type:'self-study'},
+      {id:'w12t3', mod:'accounting',name:'Accounting',            desc:'JUNE TEST PREP (Mod 1–22) · Test Tue 9 June',               detail:'Test on Tuesday 9 June',                              type:'assessment'},
+      {id:'w12t4', mod:'tax',       name:'Taxation',              desc:'JUNE ASSESSMENT PREP (LG 401–408) · Test Thu 18 June',      detail:'Test on Thursday 18 June',                            type:'assessment'}
+    ]},
+    { weekNumber:13, dates:'Jun 9 – Jun 18', tasks:[
+      {id:'w13t1', mod:'all',       name:'All Modules',           desc:'JUNE ASSESSMENTS',                                           detail:'Acc (9th), Audit (11th), Fin (15th), Tax (18th)',     type:'assessment'}
+    ]},
+    { weekNumber:14, dates:'Jul 6 – Jul 12', tasks:[
+      {id:'w14t1', mod:'auditing',  name:'Auditing',              desc:'Mod 10: Companies Act',                                      detail:'Live online class + June feedback session',           type:'live'},
+      {id:'w14t2', mod:'finance',   name:'Financial Management',  desc:'Cost of capital and capital structure (7)',                  detail:'Live online lecture',                                 type:'live'},
+      {id:'w14t3', mod:'accounting',name:'Accounting',            desc:'Groups revision (Mod 23) & Intragroup transactions (Mod 24)',detail:'Pre-recorded + Live online Tue 7',                    type:'self-study'},
+      {id:'w14t4', mod:'tax',       name:'Taxation',              desc:'Self-reflection recording + Individuals (LG 409)',           detail:'Recording Mon 6 + 2 Weeks study',                     type:'self-study'}
+    ]},
+    { weekNumber:15, dates:'Jul 13 – Jul 19', tasks:[
+      {id:'w15t1', mod:'auditing',  name:'Auditing',              desc:'Mod 10: Companies Act (continued)',                          detail:'Contact class Tuesday (9:45–11:15)',                  type:'live'},
+      {id:'w15t2', mod:'finance',   name:'Financial Management',  desc:'Financing decision incl. asset specific finance (8)',        detail:'Venue based lecture Tue 14',                          type:'live'},
+      {id:'w15t3', mod:'accounting',name:'Accounting',            desc:'IFRS 3, IAS 38 & IAS 28 (Mod 25, 26, 27)',                  detail:'Pre-recorded + Live contact Tue 14',                  type:'self-study'},
+      {id:'w15t4', mod:'tax',       name:'Taxation',              desc:'Individuals (LG 409) continued',                            detail:'Contact class Tuesday 14',                            type:'live'}
+    ]},
+    { weekNumber:16, dates:'Jul 20 – Jul 26', tasks:[
+      {id:'w16t1', mod:'auditing',  name:'Auditing',              desc:'Mod 10: Companies Act (concluded)',                          detail:'Contact class Tue 20 (8:00–9:30)',                    type:'live'},
+      {id:'w16t2', mod:'finance',   name:'Financial Management',  desc:'Analysis and Interpretation (9)',                            detail:'Venue lecture Tue 21 + Group class feedback Wed 22', type:'live'},
+      {id:'w16t3', mod:'accounting',name:'Accounting',            desc:'Group statements, IAS 27 & 28 — first 3 examples (Mod 28)', detail:'Pre-recorded + Live contact Tue 21',                  type:'self-study'},
+      {id:'w16t4', mod:'tax',       name:'Taxation',              desc:'Retirement benefits (LG 410)',                               detail:'Contact Tue 21 + Group class recap Wed 22',           type:'self-study'}
+    ]},
+    { weekNumber:17, dates:'Jul 27 – Aug 2', tasks:[
+      {id:'w17t1', mod:'auditing',  name:'Auditing',              desc:'Mod 11: King IV',                                            detail:'Contact class Tue 27 (14:00–15:30) + Group class + PVAAs Wed', type:'live'},
+      {id:'w17t2', mod:'finance',   name:'Financial Management',  desc:'Analysis and Interpretation continued (9)',                  detail:'Venue lecture Tue 28 + Online integrated class Wed 29', type:'live'},
+      {id:'w17t3', mod:'accounting',name:'Accounting',            desc:'Group statements, IAS 27 & 28 — second 4 examples (Mod 28)',detail:'Pre-recorded + Live contact Tue 28',                  type:'self-study'},
+      {id:'w17t4', mod:'tax',       name:'Taxation',              desc:'Employees Tax (LG 411)',                                     detail:'Contact class Tue 29',                                type:'self-study'}
+    ]},
+    { weekNumber:18, dates:'Aug 3 – Aug 9', tasks:[
+      {id:'w18t1', mod:'auditing',  name:'Auditing',              desc:'Mod 12: Professional Ethics (CPC and APA)',                  detail:'Contact class Tue 4 (12:15–13:45) + PVAA group class', type:'live'},
+      {id:'w18t2', mod:'finance',   name:'Financial Management',  desc:'Lecture and discussion on Analysis',                         detail:'Venue lecture Tue 4',                                 type:'live'},
+      {id:'w18t3', mod:'accounting',name:'Accounting',            desc:'IFRS 10, 11, 12 (Mod 29) + PVAA Integrated ACC & TAX',      detail:'Live contact Tue 4 + Online Wed 5',                   type:'live'},
+      {id:'w18t4', mod:'tax',       name:'Taxation',              desc:'Trusts (LG 412) + PVAA Accounting & Tax Integrated',         detail:'Contact class Tue 4 + Wed 5',                         type:'self-study'}
+    ]},
+    { weekNumber:19, dates:'Aug 10 – Aug 16', tasks:[
+      {id:'w19t1', mod:'auditing',  name:'Auditing',              desc:'Mod 13: Business Ethics',                                    detail:'Live online Tue 10 (9:45–11:15) + Group class + Application Qs', type:'live'},
+      {id:'w19t2', mod:'finance',   name:'Financial Management',  desc:'Mergers and Acquisitions (10)',                              detail:'Online lecture Tue 11',                               type:'live'},
+      {id:'w19t3', mod:'accounting',name:'Accounting',            desc:'Group statements chapter 17 (Mod 30)',                       detail:'Pre-recorded + Live contact Tue 11 + Group class Wed 12', type:'self-study'},
+      {id:'w19t4', mod:'tax',       name:'Taxation',              desc:'Donations & Estates (LG 413)',                               detail:'Online class Tue 11',                                 type:'self-study'}
+    ]},
+    { weekNumber:20, dates:'Aug 17 – Aug 22', tasks:[
+      {id:'w20t1', mod:'auditing',  name:'Auditing',              desc:'Revision',                                                   detail:'Contact class Tue 17 (8:00–9:30)',                    type:'self-study'},
+      {id:'w20t2', mod:'finance',   name:'Financial Management',  desc:'Activity Based Costing (F)',                                 detail:'Venue lecture Tue 18 + Practical class Wed 19',       type:'live'},
+      {id:'w20t3', mod:'accounting',name:'Accounting',            desc:'Loose topics & Current affairs (Mod 31) + Integrated reporting', detail:'Pre-recorded + Live contact Tue 18',           type:'self-study'},
+      {id:'w20t4', mod:'tax',       name:'Taxation',              desc:'Tax Avoidance (LG 414) + Tax Administration (LG 415)',       detail:'Contact Tue 18 + Sep prep group class Wed 19',        type:'self-study'}
+    ]},
+    { weekNumber:21, dates:'Aug 23 – Sep 6', tasks:[
+      {id:'w21t1', mod:'all',       name:'All Modules',           desc:'STUDY BREAK — September Exam Preparation',                   detail:'Intensive 15-day revision for Sept Integrated Assessments', type:'self-study'}
+    ]},
+    { weekNumber:22, dates:'Sep 7 – Sep 13', tasks:[
+      {id:'w22t1', mod:'all',       name:'All Modules',           desc:'SEPTEMBER INTEGRATED ASSESSMENTS',                           detail:'Mon–Thu: 4 papers of 120 marks each (Mods 1–31)',     type:'assessment'},
+      {id:'w22t2', mod:'finance',   name:'Financial Management',  desc:'Working Capital, Dividend policy, Businesses in distress (11, 12, 13)', detail:'Venue lecture Tue 15',           type:'live'},
+      {id:'w22t3', mod:'accounting',name:'Accounting',            desc:'Cash Flow Statement intro ch 18 (Mod 32)',                   detail:'Live contact Tue 15 + PVAA Class Wed 16',             type:'live'},
+      {id:'w22t4', mod:'tax',       name:'Taxation',              desc:'Share owners (LG 416)',                                      detail:'2 Weeks study + Contact class Tue 15',                type:'self-study'}
+    ]},
+    { weekNumber:23, dates:'Sep 14 – Sep 20', tasks:[
+      {id:'w23t1', mod:'auditing',  name:'Auditing',              desc:'Feedback on September Assessment',                           detail:'Contact class Tue 14 (14:00–15:30) + Revision group class', type:'live'},
+      {id:'w23t2', mod:'finance',   name:'Financial Management',  desc:'Revision',                                                   detail:'Venue lecture Tue 22 + Group class Wed 23',           type:'live'},
+      {id:'w23t3', mod:'accounting',name:'Accounting',            desc:'Cash flow statements question (Mod 32) + Sep feedback',      detail:'Pre-recorded + Send-off lecture Tue 22',              type:'self-study'},
+      {id:'w23t4', mod:'tax',       name:'Taxation',              desc:'Share owners continued (LG 416)',                            detail:'Contact class Tue 22',                                type:'live'}
+    ]},
+    { weekNumber:24, dates:'Sep 21 – Sep 27', tasks:[
+      {id:'w24t1', mod:'auditing',  name:'Auditing',              desc:'Forvis Mazars: Digital acumen',                              detail:'Contact class Tue 22 (12:15–13:45)',                  type:'live'},
+      {id:'w24t2', mod:'finance',   name:'Financial Management',  desc:'STUDY BREAK (28 Sep – 18 Oct)',                              detail:'Final preparation for October Exams',                 type:'self-study'},
+      {id:'w24t3', mod:'accounting',name:'Accounting',            desc:'STUDY BREAK (28 Sep – 18 Oct)',                              detail:'Final preparation for October Exams',                 type:'self-study'},
+      {id:'w24t4', mod:'tax',       name:'Taxation',              desc:'October Exam Preparation group class Wed 23',                detail:'Preparation group class',                             type:'self-study'}
+    ]},
+    { weekNumber:25, dates:'Oct 19 – Oct 22', tasks:[
+      {id:'w25t1', mod:'all',       name:'All Modules',           desc:'OCTOBER INTEGRATED EXAMS',                                   detail:'Mon–Thu 19–22 Oct: 4 papers of 120 marks each',       type:'assessment'}
+    ]}
+  ];
+
+  // Restore progress from localStorage
+  studySchedule.forEach(week => week.tasks.forEach(task => {
+    if(savedProgress[task.id]) task.completed = true; else task.completed = false;
+  }));
+
+  let trFilter = 'all';
+  try { trFilter = sessionStorage.getItem('trFilter')||'all'; } catch(e){}
+
+  const MC = {accounting:'#60a5fa', auditing:'#fb7185', finance:'#4ade80', tax:'#fbbf24', all:'rgba(255,255,255,0.7)'};
+  const typeC = {assessment:'#fb7185', live:'#60a5fa', 'self-study':'#fbbf24'};
+  const typeBg = {assessment:'rgba(251,113,133,0.15)', live:'rgba(96,165,250,0.15)', 'self-study':'rgba(251,191,36,0.15)'};
+
+  // Count totals
+  let totalTasks=0, doneTasks=0;
+  const modStats = {accounting:{d:0,t:0}, auditing:{d:0,t:0}, finance:{d:0,t:0}, tax:{d:0,t:0}};
+  studySchedule.forEach(w => w.tasks.forEach(task => {
+    if(task.mod !== 'all'){
+      totalTasks++; if(task.completed) doneTasks++;
+      if(modStats[task.mod]){ modStats[task.mod].t++; if(task.completed) modStats[task.mod].d++; }
+    }
+  }));
+  const overallPct = totalTasks ? Math.round(doneTasks/totalTasks*100) : 0;
+
+  function weekCards(){
+    return studySchedule.map(week => {
+      const tasks = trFilter==='all' ? week.tasks : week.tasks.filter(t=>t.mod===trFilter||t.mod==='all');
+      if(!tasks.length) return '';
+      const wDone = tasks.filter(t=>t.completed).length;
+      const wPct  = Math.round(wDone/tasks.length*100);
+      const isAssessmentWeek = tasks.some(t=>t.type==='assessment' && t.mod==='all');
+      const isBreakWeek      = tasks.some(t=>t.type==='self-study' && t.mod==='all');
+
+      let cardBg = 'rgba(255,255,255,0.03)', cardBrd = 'rgba(255,255,255,0.08)', cardRim = 'rgba(255,255,255,0.12)';
+      if(isAssessmentWeek){ cardBg='rgba(251,113,133,0.06)'; cardBrd='rgba(251,113,133,0.20)'; cardRim='rgba(251,113,133,0.35)'; }
+      else if(isBreakWeek){ cardBg='rgba(251,191,36,0.04)'; cardBrd='rgba(251,191,36,0.15)'; cardRim='rgba(251,191,36,0.28)'; }
+
+      const taskItems = tasks.map(task => {
+        const mc = MC[task.mod]||'#fff';
+        const tc = typeC[task.type]||'#fff';
+        const tbg= typeBg[task.type]||'rgba(255,255,255,0.1)';
+        return `
+        <div onclick="toggleTask('${task.id}')" style="display:flex;align-items:flex-start;gap:0.7rem;padding:0.7rem 0.75rem;background:${task.completed?'rgba(74,222,128,0.05)':'rgba(255,255,255,0.02)'};border-radius:10px;border-left:2.5px solid ${task.completed?'#4ade80':mc};margin-bottom:0.4rem;cursor:pointer;transition:background 0.2s;${task.completed?'opacity:0.55':''}">
+          <div style="width:18px;height:18px;border-radius:5px;border:1.5px solid ${task.completed?'#4ade80':'rgba(255,255,255,0.2)'};background:${task.completed?'#4ade80':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">
+            ${task.completed?'<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="#000" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.22rem;flex-wrap:wrap">
+              <span style="font-size:0.52rem;font-weight:800;color:${mc};font-family:var(--mono);text-transform:uppercase">${task.name}</span>
+              <span style="font-size:0.48rem;font-weight:700;padding:1px 6px;border-radius:5px;background:${tbg};color:${tc};font-family:var(--mono);text-transform:uppercase">${task.type}</span>
+            </div>
+            <div style="font-size:0.6rem;color:${task.completed?'var(--faint)':'rgba(255,255,255,0.88)'};line-height:1.45;${task.completed?'text-decoration:line-through;':''}">${task.desc}</div>
+            <div style="font-size:0.53rem;color:var(--faint);margin-top:0.15rem">${task.detail}</div>
+          </div>
+        </div>`;
+      }).join('');
+
+      return `
+      <div style="border-radius:16px;padding:1rem 1.1rem;background:${cardBg};border:1px solid ${cardBrd};border-top-color:${cardRim};margin-bottom:0.6rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.7rem">
+          <div style="display:flex;align-items:center;gap:0.6rem">
+            <span style="background:linear-gradient(135deg,rgba(96,165,250,0.35),rgba(168,85,247,0.25));border:1px solid rgba(255,255,255,0.18);color:#fff;padding:3px 10px;border-radius:20px;font-size:0.5rem;font-weight:700;font-family:var(--mono)">WK ${week.weekNumber}</span>
+            <span style="font-size:0.6rem;color:var(--muted)">${week.dates}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <div style="width:72px;height:4px;border-radius:99px;background:rgba(255,255,255,0.1);overflow:hidden">
+              <div style="width:${wPct}%;height:100%;background:${wPct===100?'#4ade80':'linear-gradient(90deg,#60a5fa,#4ade80)'};border-radius:99px"></div>
+            </div>
+            <span style="font-size:0.52rem;font-family:var(--mono);font-weight:700;color:${wPct===100?'#4ade80':'var(--muted)'}">${wPct}%</span>
+          </div>
+        </div>
+        ${taskItems}
+      </div>`;
+    }).join('');
+  }
+
+  return `
+    <div class="ph">
+      <span class="ph-sup">UJ CTA PGDA 2026 · Full Programme Task List</span>
+      <div class="ph-h1">Task Tracker</div>
+      <span class="ph-sub">Click any task to mark complete · state persists across sessions</span>
+    </div>
+
+    <div class="glass" style="padding:1.1rem 1.3rem;margin-bottom:1rem">
+      <div class="shimmer"></div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0.75rem;margin-bottom:0.8rem">
+        <div>
+          <div style="font-size:0.5rem;color:var(--faint);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.15rem">Overall</div>
+          <div style="font-family:var(--mono);font-size:1.2rem;font-weight:800;color:${overallPct===100?'#4ade80':overallPct>60?'#fbbf24':'#60a5fa'}">${overallPct}%</div>
+        </div>
+        ${Object.entries(modStats).map(([mod,s])=>{
+          const pct = s.t?Math.round(s.d/s.t*100):0;
+          return `<div>
+            <div style="font-size:0.5rem;color:${MC[mod]};text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.15rem;font-weight:700">${mod.substring(0,3).toUpperCase()}</div>
+            <div style="font-family:var(--mono);font-size:1.1rem;font-weight:800;color:${MC[mod]}">${pct}%</div>
+            <div style="font-size:0.48rem;color:var(--faint);font-family:var(--mono)">${s.d}/${s.t}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="height:6px;border-radius:99px;background:rgba(255,255,255,0.09);overflow:hidden">
+        <div style="width:${overallPct}%;height:100%;background:linear-gradient(90deg,#60a5fa,#4ade80);border-radius:99px;box-shadow:0 0 10px rgba(74,222,128,0.3)"></div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:0.45rem;margin-bottom:0.9rem;flex-wrap:wrap" id="trFilters">
+      ${['all','accounting','auditing','finance','tax'].map(f=>`
+        <button onclick="setTrFilter('${f}')" id="trf_${f}" style="padding:0.28rem 0.7rem;border-radius:7px;border:1px solid ${trFilter===f?MC[f]||'rgba(255,255,255,0.5)':'rgba(255,255,255,0.12)'};background:${trFilter===f?(MC[f]||'rgba(255,255,255,0.12)')+'18':'rgba(255,255,255,0.04)'};color:${trFilter===f?MC[f]||'#fff':'var(--faint)'};font-size:0.53rem;font-weight:700;cursor:pointer;font-family:var(--mono);text-transform:uppercase;transition:all 0.2s">${f}</button>
+      `).join('')}
+    </div>
+
+    <div id="taskCards">
+      ${weekCards()}
+    </div>
+  `;
+}
+
+function toggleTask(id){
+  const LS_KEY='ujCTAProgress_v2';
+  let s={};
+  try{s=JSON.parse(localStorage.getItem(LS_KEY)||'{}');}catch(e){}
+  if(s[id]) delete s[id]; else s[id]=true;
+  localStorage.setItem(LS_KEY,JSON.stringify(s));
+  switchTab('tracker');
+}
+
+function setTrFilter(f){
+  try{sessionStorage.setItem('trFilter',f);}catch(e){}
+  switchTab('tracker');
+}
+
+/* ─── SWITCH TAB ───
+/* ─── SWITCH TAB ─── */
+function switchTab(tab) {
+  currentTab=tab;renderSidebar();
+  let html='';
+  if(tab==='overview') html=renderOverview();
+  else if(tab==='planner') html=renderPlanner();
+  else if(tab==='insights') html=renderInsights();
+  else if(tab==='grader') html=renderGrader();
+  else if(tab==='schedule') html=renderSchedule();
+  else if(tab==='tracker') html=renderTracker();
+  else if(tab==='editmarks') html=renderEditMarks();
+  else{const mod=MODS.find(m=>m.id.toLowerCase()===tab);if(mod)html=renderModulePage(mod);}
+  const mainEl = document.getElementById('main');
+  mainEl.innerHTML=`<div class="page">${html}</div>`;
+  mainEl.scrollTop = 0;
+  if(tab==='overview'){
+    setTimeout(initChart,50);
+    if(!window._cdInterval) window._cdInterval = setInterval(refreshCountdown, 1000);
+  }
+  if(tab==='planner') setTimeout(()=>{
+    const s=document.getElementById('sep-slider');
+    if(s)s.addEventListener('input',e=>updateSep(+e.target.value));
+  },50);
+}
+
+/* ─── INTRO / LANDING ─── */
+(function() {
+  let _count = 6;
+  let _timer = null;
+
+  function tick() {
+    _count--;
+    const el = document.getElementById('intro-countdown');
+    if (el) el.textContent = Math.max(0, _count);
+    if (_count <= 0) { clearInterval(_timer); openDashboard(); }
+  }
+
+  // Start countdown after 3.5s (button is visible by then)
+  setTimeout(() => { _timer = setInterval(tick, 1000); }, 3500);
+
+  // Click anywhere on the intro (not the button) also opens
+  const overlay = document.getElementById('intro-overlay');
+  if (overlay) {
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay || e.target.id === 'intro-overlay') openDashboard();
+    });
+  }
+
+  window.openDashboard = function() {
+    if (_timer) clearInterval(_timer);
+    const cl = document.getElementById('curtain-l');
+    const cr = document.getElementById('curtain-r');
+    if (!cl || !cr) return;
+    // Book opens — curtains slide to their respective sides
+    cl.style.transform = 'translateX(-100%)';
+    cr.style.transform = 'translateX(100%)';
+    // Fade out the full overlay after panels have cleared
+    setTimeout(() => {
+      const intro = document.getElementById('intro-overlay');
+      if (intro) {
+        intro.style.transition = 'opacity 0.38s ease';
+        intro.style.opacity = '0';
+        setTimeout(() => { if (intro) intro.remove(); }, 400);
+      }
+    }, 1360);
+  };
+})();
+
+/* ─── INIT ─── */
+if (loadUserData()) {
+  SEP_EXAM = new Date(USER_SETTINGS.examDate || '2026-09-08T08:00:00');
+  switchTab('overview');
+} else {
+  MODS = [{id:'DEMO',name:'Demo Module',code:'DEM001',color:'#ffffff',feb:null,apr:null,jun:null,junRaw:null,junTotal:100,junStatus:'pending',breakdown:[],priorities:[]}];
+  renderSidebar();
+  showOnboarding();
+}
+</script>
+</body>
+</html>

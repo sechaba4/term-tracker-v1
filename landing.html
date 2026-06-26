@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CTA Mark Dashboard — Academic Performance Tracker</title>
+  <meta name="description" content="Track your CTA PGDA marks. Weighted scores, Sep planning, AI exam grading — free, private, no account.">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,200;14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800;14..32,900&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ─── TOKENS ─── */
+    :root {
+      --bg:     #050505;
+      --surf:   rgba(255,255,255,0.042);
+      --surf2:  rgba(255,255,255,0.022);
+      --text:   #ffffff;
+      --muted:  rgba(255,255,255,0.50);
+      --faint:  rgba(255,255,255,0.24);
+      --dim:    rgba(255,255,255,0.12);
+      --border: rgba(255,255,255,0.09);
+      --bright: rgba(255,255,255,0.26);
+      --mono:  'JetBrains Mono', monospace;
+      --sans:  'Inter', -apple-system, system-ui, sans-serif;
+      --ease:   cubic-bezier(0.16,1,0.3,1);
+      --r:      18px;
+    }
+
+    *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+    html { scroll-behavior:smooth; font-size:16px; }
+    body { font-family:var(--sans); background:var(--bg); color:var(--text); overflow-x:hidden; line-height:1.6; }
+    ::-webkit-scrollbar { width:3px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.08); border-radius:2px; }
+    :focus-visible { outline:2px solid rgba(255,255,255,0.6); outline-offset:3px; border-radius:6px; }
+    a { text-decoration:none; color:inherit; }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important; transition-duration:0.01ms!important; } }
+
+    /* ─── BACKGROUND LAYERS ─── */
+    .grid-overlay {
+      position:fixed; inset:0; z-index:0; pointer-events:none;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.014) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.014) 1px, transparent 1px);
+      background-size:60px 60px;
+    }
+    .vignette {
+      position:fixed; inset:0; z-index:0; pointer-events:none;
+      background:radial-gradient(ellipse 90% 60% at 50% 0%, rgba(255,255,255,0.03) 0%, transparent 65%);
+    }
+    .grain {
+      position:fixed; inset:0; z-index:1; pointer-events:none; opacity:0.036;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.90' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+      background-size:160px 160px;
+    }
+
+    /* ─── GLASS ─── */
+    .glass {
+      background:var(--surf);
+      backdrop-filter:blur(32px) saturate(180%) brightness(1.06);
+      -webkit-backdrop-filter:blur(32px) saturate(180%) brightness(1.06);
+      border:1px solid var(--border);
+      border-top-color:var(--bright);
+      border-radius:var(--r);
+      box-shadow:0 20px 60px rgba(0,0,0,0.85), inset 0 1.5px 0 rgba(255,255,255,0.52), inset 0 -1px 0 rgba(0,0,0,0.15);
+      position:relative; overflow:hidden;
+    }
+    .glass::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:44%;
+      background:linear-gradient(180deg, rgba(255,255,255,0.055) 0%, transparent 100%);
+      pointer-events:none;
+    }
+    .glass::after {
+      content:''; position:absolute; top:0; left:14px; width:34%; height:1.5px;
+      background:linear-gradient(90deg, transparent, rgba(255,255,255,0.65), rgba(255,255,255,0.18), transparent);
+      pointer-events:none;
+    }
+    .shim {
+      position:absolute; inset:0; z-index:0; pointer-events:none;
+      background:linear-gradient(45deg, transparent 42%, rgba(255,255,255,0.016) 50%, transparent 58%);
+      animation:shimAnim 14s infinite linear;
+    }
+    @keyframes shimAnim {
+      0%   { transform:translateX(-65%)translateY(-65%)rotate(45deg); }
+      100% { transform:translateX(65%)translateY(65%)rotate(45deg); }
+    }
+    .glass > *:not(.shim) { position:relative; z-index:1; }
+
+    /* ─── NAV ─── */
+    nav {
+      position:fixed; top:0; left:0; right:0; z-index:100;
+      padding:1rem 2.4rem;
+      display:flex; align-items:center; justify-content:space-between;
+      transition:background 0.45s var(--ease), border-color 0.45s;
+    }
+    nav.scrolled {
+      background:rgba(3,3,3,0.90);
+      backdrop-filter:blur(28px) saturate(180%);
+      -webkit-backdrop-filter:blur(28px) saturate(180%);
+      border-bottom:1px solid rgba(255,255,255,0.07);
+    }
+    .nav-logo { display:flex; align-items:center; gap:0.6rem; }
+    .nav-badge {
+      width:34px; height:34px; border-radius:9px;
+      background:rgba(255,255,255,0.09);
+      border:1px solid rgba(255,255,255,0.18);
+      display:flex; align-items:center; justify-content:center;
+      font-size:0.5rem; font-weight:900; color:rgba(255,255,255,0.85); letter-spacing:0.02em;
+      font-family:var(--mono);
+    }
+    .nav-name { font-size:0.86rem; font-weight:700; letter-spacing:-0.01em; }
+    .nav-sub  { font-size:0.48rem; color:var(--faint); letter-spacing:0.06em; }
+    .nav-links { display:flex; gap:0.1rem; list-style:none; }
+    .nav-links a {
+      padding:0.4rem 0.78rem; border-radius:8px;
+      font-size:0.74rem; font-weight:500; color:var(--muted);
+      transition:color 0.2s, background 0.2s;
+    }
+    .nav-links a:hover { color:var(--text); background:rgba(255,255,255,0.06); }
+
+    /* ─── BUTTONS ─── */
+    .btn-p {
+      display:inline-flex; align-items:center; gap:0.45rem;
+      padding:0.78rem 1.9rem; border-radius:12px; cursor:pointer;
+      background:#ffffff; color:#000000;
+      border:1px solid rgba(255,255,255,0.9);
+      font-size:0.88rem; font-weight:700; font-family:var(--sans);
+      box-shadow:0 4px 24px rgba(255,255,255,0.15);
+      transition:transform 0.22s var(--ease), box-shadow 0.22s, background 0.2s;
+    }
+    .btn-p:hover { transform:translateY(-2px); box-shadow:0 10px 36px rgba(255,255,255,0.22); background:#f0f0f0; }
+    .btn-s {
+      display:inline-flex; align-items:center; gap:0.45rem;
+      padding:0.78rem 1.9rem; border-radius:12px; cursor:pointer;
+      background:rgba(255,255,255,0.06);
+      border:1px solid rgba(255,255,255,0.18); border-top-color:rgba(255,255,255,0.28);
+      color:var(--muted); font-size:0.88rem; font-weight:600;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.14);
+      transition:all 0.22s var(--ease);
+    }
+    .btn-s:hover { background:rgba(255,255,255,0.10); color:var(--text); }
+
+    /* ─── LAYOUT ─── */
+    .wrap { position:relative; z-index:2; max-width:1180px; margin:0 auto; padding:0 2rem; }
+
+    /* ─── REVEAL ─── */
+    .rv { opacity:0; transform:translateY(26px); transition:opacity 0.7s var(--ease), transform 0.7s var(--ease); }
+    .rv.in { opacity:1; transform:translateY(0); }
+
+    /* ─── HERO ─── */
+    .hero {
+      position:relative; min-height:100dvh;
+      display:flex; flex-direction:column; align-items:center;
+      justify-content:center; text-align:center;
+      padding:7rem 2rem 5rem; overflow:hidden; z-index:2;
+    }
+
+    /* Globe canvas */
+    .globe-wrap {
+      position:absolute; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      z-index:0; pointer-events:none;
+      opacity:0; transition:opacity 2s ease;
+    }
+    .globe-wrap.visible { opacity:1; }
+    #globe-canvas { display:block; }
+    .globe-glow {
+      position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+      width:540px; height:540px; border-radius:50%;
+      background:radial-gradient(circle, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.012) 40%, transparent 70%);
+      pointer-events:none;
+    }
+
+    /* Hero content */
+    .hero-inner { position:relative; z-index:2; max-width:900px; }
+
+    .hero-tag {
+      display:inline-flex; align-items:center; gap:0.5rem;
+      padding:0.32rem 1rem; border-radius:24px; margin-bottom:2.2rem;
+      background:rgba(255,255,255,0.06);
+      border:1px solid rgba(255,255,255,0.14); border-top-color:rgba(255,255,255,0.26);
+      font-size:0.58rem; font-weight:800; color:rgba(255,255,255,0.65);
+      text-transform:uppercase; letter-spacing:0.2em;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.14);
+    }
+    .htag-dot {
+      width:5px; height:5px; border-radius:50%;
+      background:rgba(255,255,255,0.6); box-shadow:0 0 6px rgba(255,255,255,0.5);
+      animation:tagP 2.2s ease-in-out infinite;
+    }
+    @keyframes tagP { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.6)} }
+
+    .hero-h1-thin {
+      font-size:clamp(3rem,8vw,6.5rem); font-weight:200;
+      color:rgba(255,255,255,0.60); letter-spacing:-0.04em;
+      line-height:1; display:block;
+      opacity:0; transform:translateY(20px);
+      animation:fadeUp 0.9s 0.4s var(--ease) forwards;
+    }
+    .hero-h1-bold {
+      font-size:clamp(3.5rem,9.5vw,8rem); font-weight:900;
+      color:#ffffff; letter-spacing:-0.048em;
+      line-height:0.94; display:block; margin-top:0.04em;
+      opacity:0; transform:translateY(20px);
+      animation:fadeUp 0.9s 0.7s var(--ease) forwards;
+    }
+    @keyframes fadeUp { to { opacity:1; transform:translateY(0); } }
+
+    /* Cycling subtitle */
+    .hero-cycle-wrap {
+      margin:1.8rem 0 2.6rem;
+      opacity:0; animation:fadeUp 0.7s 1s var(--ease) forwards;
+    }
+    .cycle-prefix { font-size:1rem; color:var(--muted); font-weight:400; }
+    .cycle-text {
+      display:inline-block; font-size:1rem; font-weight:700; color:rgba(255,255,255,0.9);
+      padding:0.08rem 0.6rem; border-radius:6px;
+      background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.14);
+      transition:opacity 0.35s ease, transform 0.35s var(--ease);
+    }
+    .cycle-text.fade-out { opacity:0; transform:translateY(-8px); }
+    .cycle-text.fade-in  { opacity:1; transform:translateY(0); }
+
+    .hero-sub {
+      font-size:1rem; color:var(--muted); max-width:500px; margin:0 auto 2.6rem;
+      line-height:1.75;
+      opacity:0; animation:fadeUp 0.7s 1.2s var(--ease) forwards;
+    }
+    .hero-acts {
+      display:flex; gap:0.9rem; justify-content:center; flex-wrap:wrap; margin-bottom:4rem;
+      opacity:0; animation:fadeUp 0.7s 1.4s var(--ease) forwards;
+    }
+
+    /* Hero stats */
+    .hstats {
+      display:flex; justify-content:center; overflow:hidden;
+      border:1px solid var(--border); border-top-color:rgba(255,255,255,0.16);
+      border-radius:16px; background:rgba(0,0,0,0.55);
+      backdrop-filter:blur(20px);
+      opacity:0; animation:fadeUp 0.7s 1.6s var(--ease) forwards;
+    }
+    .hstat { padding:1rem 2rem; border-right:1px solid var(--border); text-align:center; flex:1; min-width:100px; }
+    .hstat:last-child { border-right:none; }
+    .hstat-v {
+      font-family:var(--mono); font-size:1.5rem; font-weight:800;
+      letter-spacing:-0.04em; line-height:1; display:block; margin-bottom:0.2rem;
+    }
+    .hstat-l { font-size:0.54rem; text-transform:uppercase; letter-spacing:0.1em; color:var(--faint); font-weight:700; }
+
+    /* ─── MARQUEE ─── */
+    .marquee-wrap {
+      position:relative; z-index:2; overflow:hidden;
+      border-top:1px solid var(--border); border-bottom:1px solid var(--border);
+      padding:0.85rem 0; background:rgba(0,0,0,0.45);
+    }
+    .marquee-wrap::before,.marquee-wrap::after {
+      content:''; position:absolute; top:0; width:100px; height:100%; z-index:1; pointer-events:none;
+    }
+    .marquee-wrap::before { left:0; background:linear-gradient(90deg,var(--bg),transparent); }
+    .marquee-wrap::after  { right:0; background:linear-gradient(-90deg,var(--bg),transparent); }
+    .marquee { display:flex; animation:marqueeAnim 30s linear infinite; }
+    .marquee-item {
+      flex-shrink:0; padding:0 1.8rem; white-space:nowrap;
+      font-family:var(--mono); font-size:0.6rem; font-weight:700;
+      text-transform:uppercase; letter-spacing:0.12em; color:var(--faint);
+      display:flex; align-items:center; gap:0.7rem;
+    }
+    .md { width:3px; height:3px; border-radius:50%; background:rgba(255,255,255,0.35); }
+    @keyframes marqueeAnim { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+    /* ─── SECTIONS ─── */
+    .sec { padding:7rem 0; }
+    .stag { font-size:0.58rem; font-weight:800; text-transform:uppercase; letter-spacing:0.18em; color:rgba(255,255,255,0.38); display:block; margin-bottom:0.6rem; }
+    .sh2 { font-size:clamp(1.9rem,3.8vw,2.9rem); font-weight:900; letter-spacing:-0.042em; line-height:1.05; margin-bottom:0.9rem; }
+    .ssub { font-size:0.94rem; color:var(--muted); line-height:1.75; max-width:500px; }
+    .shdr { margin-bottom:3.5rem; }
+
+    /* ─── BENTO GRID ─── */
+    .bento { display:grid; grid-template-columns:repeat(12,1fr); gap:0.9rem; }
+    .bento > * { grid-column:span 4; }
+    .bw8 { grid-column:span 8!important; }
+    .bw6 { grid-column:span 6!important; }
+    .bw12{ grid-column:span 12!important; }
+
+    .fc { padding:1.75rem; transition:transform 0.3s var(--ease), box-shadow 0.3s; }
+    .fc:hover { transform:translateY(-4px); box-shadow:0 28px 70px rgba(0,0,0,0.9); }
+    .ficon {
+      width:42px; height:42px; border-radius:12px; margin-bottom:1.15rem;
+      display:flex; align-items:center; justify-content:center;
+      background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12);
+      box-shadow:inset 0 1.5px 0 rgba(255,255,255,0.24), 0 3px 10px rgba(0,0,0,0.3);
+    }
+    .ficon svg { width:19px; height:19px; }
+    .fh { font-size:0.98rem; font-weight:800; letter-spacing:-0.02em; margin-bottom:0.45rem; }
+    .fp { font-size:0.78rem; color:var(--muted); line-height:1.72; }
+
+    /* Mini dashboard mockup */
+    .mock { padding:1rem; }
+    .mock-bar { display:flex; gap:0.4rem; align-items:center; margin-bottom:0.85rem; }
+    .mock-dot { width:8px; height:8px; border-radius:50%; }
+    .mock-t { font-size:0.46rem; color:var(--faint); margin-left:0.4rem; font-family:var(--mono); font-weight:700; letter-spacing:0.06em; text-transform:uppercase; }
+    .mock-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:0.4rem; margin-bottom:0.6rem; }
+    .mock-stat { padding:0.58rem 0.45rem; border-radius:9px; text-align:center; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); }
+    .ms-l { font-size:0.36rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--faint); display:block; margin-bottom:0.18rem; font-weight:700; }
+    .ms-v { font-family:var(--mono); font-size:0.96rem; font-weight:800; line-height:1; }
+    .mock-mods { display:flex; flex-direction:column; gap:0.36rem; }
+    .mock-mod { display:flex; align-items:center; gap:0.5rem; padding:0.52rem 0.65rem; border-radius:8px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); }
+    .mm-id { font-family:var(--mono); font-size:0.52rem; font-weight:800; min-width:26px; color:rgba(255,255,255,0.65); }
+    .mm-bar { flex:1; height:3px; border-radius:2px; background:rgba(255,255,255,0.07); overflow:hidden; }
+    .mm-fill { height:100%; border-radius:2px; background:rgba(255,255,255,0.55); }
+    .mm-v { font-family:var(--mono); font-size:0.52rem; font-weight:700; min-width:30px; text-align:right; color:var(--muted); }
+
+    /* ─── STEPS ─── */
+    .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:1.2rem; }
+    .step { padding:2rem 1.8rem; position:relative; transition:transform 0.28s var(--ease); }
+    .step:hover { transform:translateY(-4px); }
+    .step-num {
+      font-family:var(--mono); font-size:3rem; font-weight:900;
+      letter-spacing:-0.07em; line-height:1; display:block; margin-bottom:1rem;
+      color:rgba(255,255,255,0.07);
+    }
+    .step-h { font-size:1rem; font-weight:800; letter-spacing:-0.02em; margin-bottom:0.45rem; }
+    .step-p { font-size:0.78rem; color:var(--muted); line-height:1.72; }
+    .step-conn { position:absolute; top:2.5rem; right:-0.6rem; width:1.2rem; height:1px; background:linear-gradient(90deg, rgba(255,255,255,0.1), transparent); }
+    .pill { display:inline-flex; align-items:center; gap:0.28rem; margin-top:1.1rem; padding:0.16rem 0.52rem; border-radius:20px; font-family:var(--mono); font-size:0.5rem; font-weight:800; text-transform:uppercase; letter-spacing:0.05em; border:1px solid rgba(255,255,255,0.14); color:rgba(255,255,255,0.55); background:rgba(255,255,255,0.05); }
+
+    /* ─── MODULES ─── */
+    .mods-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.9rem; }
+    .mod-card { padding:1.4rem; transition:transform 0.25s var(--ease); }
+    .mod-card:hover { transform:translateY(-4px); }
+    .mod-hdr { display:flex; align-items:center; gap:0.6rem; margin-bottom:1rem; flex-wrap:wrap; }
+    .mod-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .mod-code { font-family:var(--mono); font-size:0.5rem; font-weight:700; padding:0.14rem 0.44rem; border-radius:5px; border:1px solid rgba(255,255,255,0.10); background:rgba(255,255,255,0.05); color:var(--faint); letter-spacing:0.05em; }
+    .mod-name { font-size:0.88rem; font-weight:800; }
+    .mod-ws { display:flex; gap:0.4rem; margin-bottom:0.75rem; }
+    .mod-w { flex:1; padding:0.48rem 0.42rem; border-radius:8px; text-align:center; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); }
+    .mod-wl { font-size:0.4rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--faint); display:block; margin-bottom:0.12rem; }
+    .mod-wv { font-family:var(--mono); font-size:0.78rem; font-weight:800; color:var(--muted); }
+    .mod-desc { font-size:0.68rem; color:var(--faint); line-height:1.62; }
+
+    /* ─── PRIVACY ─── */
+    .priv-grid { display:grid; grid-template-columns:1fr 1fr; gap:4rem; align-items:center; }
+    .priv-items { display:flex; flex-direction:column; gap:1.2rem; }
+    .priv-item { display:flex; gap:0.85rem; align-items:flex-start; }
+    .priv-icon { width:36px; height:36px; border-radius:9px; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.055); border:1px solid rgba(255,255,255,0.10); }
+    .priv-icon svg { width:15px; height:15px; }
+    .priv-h { font-size:0.84rem; font-weight:700; margin-bottom:0.16rem; }
+    .priv-p { font-size:0.72rem; color:var(--muted); line-height:1.68; }
+
+    /* ─── CTA ─── */
+    .cta-sec { padding:9rem 0; position:relative; z-index:2; text-align:center; }
+    .cta-badge {
+      width:58px; height:58px; margin:0 auto 1.8rem;
+      background:rgba(255,255,255,0.08); border-radius:16px;
+      border:1px solid rgba(255,255,255,0.18); border-top-color:rgba(255,255,255,0.35);
+      display:flex; align-items:center; justify-content:center;
+      font-size:0.62rem; font-weight:900; color:rgba(255,255,255,0.85); font-family:var(--mono);
+      box-shadow:inset 0 1.5px 0 rgba(255,255,255,0.32);
+    }
+    .cta-h2 { font-size:clamp(2rem,5vw,3.5rem); font-weight:900; letter-spacing:-0.045em; line-height:1.04; margin-bottom:1rem; }
+    .cta-sub { font-size:0.94rem; color:var(--muted); margin-bottom:2.4rem; }
+    .cta-note { font-size:0.58rem; color:var(--faint); margin-top:1.4rem; letter-spacing:0.03em; }
+
+    /* ─── FOOTER ─── */
+    footer { position:relative; z-index:2; border-top:1px solid var(--border); padding:2.2rem 2rem; }
+    .foot-inner { max-width:1180px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; }
+    .foot-copy { font-size:0.64rem; color:var(--faint); }
+    .foot-links { display:flex; gap:1.4rem; }
+    .foot-links a { font-size:0.64rem; color:var(--faint); transition:color 0.2s; }
+    .foot-links a:hover { color:var(--muted); }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width:900px) {
+      .bento > * { grid-column:span 12!important; }
+      .steps { grid-template-columns:1fr; }
+      .mods-grid { grid-template-columns:1fr; }
+      .priv-grid { grid-template-columns:1fr; gap:2rem; }
+      .step-conn { display:none; }
+      .nav-links { display:none; }
+      .hstat { padding:0.85rem 1.1rem; }
+    }
+    @media (max-width:480px) {
+      .hero-h1-thin { font-size:2.6rem; }
+      .hero-h1-bold { font-size:3rem; }
+      .hero-acts { flex-direction:column; align-items:center; }
+      .hstats { flex-direction:column; border-radius:14px; }
+      .hstat { border-right:none; border-bottom:1px solid var(--border); }
+      .hstat:last-child { border-bottom:none; }
+      .globe-wrap { opacity:0.5!important; }
+    }
+
+    /* Wt bars */
+    .wbar-row { display:flex; align-items:center; gap:0.75rem; }
+    .wbar-lbl { font-family:var(--mono); font-size:0.56rem; font-weight:800; color:var(--muted); min-width:28px; }
+    .wbar-track { flex:1; height:4px; border-radius:3px; background:rgba(255,255,255,0.06); overflow:hidden; }
+    .wbar-fill { height:100%; border-radius:3px; background:rgba(255,255,255,0.5); }
+    .wbar-val { font-family:var(--mono); font-size:0.58rem; font-weight:800; min-width:26px; text-align:right; color:var(--muted); }
+  </style>
+</head>
+<body>
+
+<!-- BG layers -->
+<div class="grid-overlay" aria-hidden="true"></div>
+<div class="vignette"     aria-hidden="true"></div>
+<div class="grain"        aria-hidden="true"></div>
+
+<!-- NAV -->
+<nav id="nav" role="navigation" aria-label="Main navigation">
+  <a href="#" class="nav-logo" aria-label="CTA Mark Dashboard — home">
+    <div class="nav-badge" aria-hidden="true">CTA</div>
+    <div>
+      <div class="nav-name">Mark Dashboard</div>
+      <div class="nav-sub">PGDA 2026</div>
+    </div>
+  </a>
+  <ul class="nav-links" role="list">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#modules">Modules</a></li>
+    <li><a href="#privacy">Privacy</a></li>
+  </ul>
+  <a href="index.html" class="btn-p" style="padding:0.48rem 1.2rem;font-size:0.74rem;border-radius:9px">Open Dashboard →</a>
+</nav>
+
+<!-- ─── HERO ─── -->
+<section class="hero" aria-label="Hero">
+
+  <!-- Animated globe behind everything -->
+  <div class="globe-wrap" id="globe-wrap">
+    <div class="globe-glow"></div>
+    <canvas id="globe-canvas" width="580" height="580" aria-hidden="true"></canvas>
+  </div>
+
+  <div class="hero-inner">
+    <div class="hero-tag" aria-hidden="true">
+      <span class="htag-dot"></span>
+      CTA Performance Tracker
+      <span class="htag-dot"></span>
+    </div>
+
+    <h1>
+      <span class="hero-h1-thin">Track</span>
+      <span class="hero-h1-bold">Your Results.</span>
+    </h1>
+
+    <!-- Cycling value props -->
+    <div class="hero-cycle-wrap" aria-live="polite">
+      <span class="cycle-prefix">Built to help you </span>
+      <span class="cycle-text" id="cycle-el">monitor your marks</span>
+    </div>
+
+    <p class="hero-sub">
+      The academic performance dashboard built for CTA PGDA students.
+      Track marks across all four modules, plan your September targets,
+      and gain the insights you need to pass.
+    </p>
+
+    <div class="hero-acts">
+      <a href="index.html" class="btn-p">Start Tracking — Free →</a>
+      <a href="#how" class="btn-s">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+        See how it works
+      </a>
+    </div>
+
+    <div class="hstats" role="list" aria-label="Key statistics">
+      <div class="hstat" role="listitem">
+        <span class="hstat-v" data-count="4">4</span>
+        <span class="hstat-l">CTA Modules</span>
+      </div>
+      <div class="hstat" role="listitem">
+        <span class="hstat-v">4</span>
+        <span class="hstat-l">Tests / Module</span>
+      </div>
+      <div class="hstat" role="listitem">
+        <span class="hstat-v">100%</span>
+        <span class="hstat-l">Private</span>
+      </div>
+      <div class="hstat" role="listitem">
+        <span class="hstat-v">Free</span>
+        <span class="hstat-l">No account</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marquee-wrap" aria-hidden="true">
+  <div class="marquee">
+    <div class="marquee-item"><span class="md"></span>Live Mark Calculator</div>
+    <div class="marquee-item"><span class="md"></span>September Planner</div>
+    <div class="marquee-item"><span class="md"></span>AI Exam Grader</div>
+    <div class="marquee-item"><span class="md"></span>Study Schedule</div>
+    <div class="marquee-item"><span class="md"></span>Task Tracker</div>
+    <div class="marquee-item"><span class="md"></span>Question Breakdown</div>
+    <div class="marquee-item"><span class="md"></span>Financial Accounting</div>
+    <div class="marquee-item"><span class="md"></span>Auditing &amp; Control</div>
+    <div class="marquee-item"><span class="md"></span>Taxation</div>
+    <div class="marquee-item"><span class="md"></span>Management Accounting</div>
+    <div class="marquee-item"><span class="md"></span>Zero Tracking</div>
+    <div class="marquee-item"><span class="md"></span>localStorage Only</div>
+    <div class="marquee-item"><span class="md"></span>Live Mark Calculator</div>
+    <div class="marquee-item"><span class="md"></span>September Planner</div>
+    <div class="marquee-item"><span class="md"></span>AI Exam Grader</div>
+    <div class="marquee-item"><span class="md"></span>Study Schedule</div>
+    <div class="marquee-item"><span class="md"></span>Task Tracker</div>
+    <div class="marquee-item"><span class="md"></span>Question Breakdown</div>
+    <div class="marquee-item"><span class="md"></span>Financial Accounting</div>
+    <div class="marquee-item"><span class="md"></span>Auditing &amp; Control</div>
+    <div class="marquee-item"><span class="md"></span>Taxation</div>
+    <div class="marquee-item"><span class="md"></span>Management Accounting</div>
+    <div class="marquee-item"><span class="md"></span>Zero Tracking</div>
+    <div class="marquee-item"><span class="md"></span>localStorage Only</div>
+  </div>
+</div>
+
+<!-- ─── FEATURES ─── -->
+<section class="sec" id="features" aria-label="Features">
+  <div class="wrap">
+    <div class="shdr rv">
+      <span class="stag">Features</span>
+      <h2 class="sh2">Everything you need<br>to ace your CTA</h2>
+      <p class="ssub">Built specifically for PGDA students. No generic study app — every feature maps directly to how your year mark is calculated.</p>
+    </div>
+
+    <div class="bento">
+
+      <!-- Wide: Calculator + mockup -->
+      <div class="glass fc bw8 rv" style="transition-delay:0.04s">
+        <div class="shim"></div>
+        <div style="display:grid;grid-template-columns:1fr 1.05fr;gap:2rem;align-items:center">
+          <div>
+            <div class="ficon">
+              <svg fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18M7 16l4-4 4 4 4-6"/></svg>
+            </div>
+            <h3 class="fh">Live Mark Calculator</h3>
+            <p class="fp">Enter Feb (10%), Apr (15%), Jun (30%), and Sep (45%) marks per module. Weighted year mark updates instantly — including half-year running total and overall pass/fail status.</p>
+            <div style="margin-top:1.3rem;display:flex;gap:0.45rem;flex-wrap:wrap">
+              <span class="pill">● Real-time</span>
+              <span class="pill">● Per-module</span>
+              <span class="pill">● Weighted</span>
+            </div>
+          </div>
+          <div class="glass mock">
+            <div class="shim"></div>
+            <div class="mock-bar">
+              <div class="mock-dot" style="background:rgba(255,255,255,0.2)"></div>
+              <div class="mock-dot" style="background:rgba(255,255,255,0.14)"></div>
+              <div class="mock-dot" style="background:rgba(255,255,255,0.08)"></div>
+              <span class="mock-t">Marks Overview</span>
+            </div>
+            <div class="mock-stats">
+              <div class="mock-stat"><span class="ms-l">Jun Avg</span><span class="ms-v">47.5%</span></div>
+              <div class="mock-stat"><span class="ms-l">Passed</span><span class="ms-v">3/4</span></div>
+              <div class="mock-stat"><span class="ms-l">HYM</span><span class="ms-v">51.3%</span></div>
+              <div class="mock-stat"><span class="ms-l">Risk</span><span class="ms-v">FAC</span></div>
+            </div>
+            <div class="mock-mods">
+              <div class="mock-mod"><span class="mm-id">FAC</span><div class="mm-bar"><div class="mm-fill" style="width:35%;opacity:0.55"></div></div><span class="mm-v">35.0%</span></div>
+              <div class="mock-mod"><span class="mm-id">AUC</span><div class="mm-bar"><div class="mm-fill" style="width:62.9%"></div></div><span class="mm-v">62.9%</span></div>
+              <div class="mock-mod"><span class="mm-id">TAX</span><div class="mm-bar"><div class="mm-fill" style="width:59.6%"></div></div><span class="mm-v">59.6%</span></div>
+              <div class="mock-mod"><span class="mm-id">MAF</span><div class="mm-bar"><div class="mm-fill" style="width:53.3%"></div></div><span class="mm-v">53.3%</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sep Planner -->
+      <div class="glass fc rv" style="transition-delay:0.08s">
+        <div class="shim"></div>
+        <div class="ficon"><svg fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v2M15 3v2"/></svg></div>
+        <h3 class="fh">September Planner</h3>
+        <p class="fp">Drag a slider — see what Sep mark you need in each module to reach 50% overall. Know your target before you open the textbook.</p>
+      </div>
+
+      <!-- AI Grader -->
+      <div class="glass fc rv" style="transition-delay:0.12s">
+        <div class="shim"></div>
+        <div class="ficon"><svg fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+        <h3 class="fh">AI Exam Grader</h3>
+        <p class="fp">Paste a question, memo, and your answer. Claude grades it against CTA marking rubrics and shows exactly which marks you'd lose and why.</p>
+      </div>
+
+      <!-- Study Schedule -->
+      <div class="glass fc rv" style="transition-delay:0.16s">
+        <div class="shim"></div>
+        <div class="ficon"><svg fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+        <h3 class="fh">Study Schedule</h3>
+        <p class="fp">Week-by-week plan from the official PGDA programme timetable. Tick periods as complete — progress persists in your browser.</p>
+      </div>
+
+      <!-- Task Tracker -->
+      <div class="glass fc rv" style="transition-delay:0.20s">
+        <div class="shim"></div>
+        <div class="ficon"><svg fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12l2 2 4-4M7 3H4a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V7l-5-4H7z"/></svg></div>
+        <h3 class="fh">Task Tracker</h3>
+        <p class="fp">Individual module tasks per week. Filter by FAC, AUC, TAX, or MAF — check them off and see progress at a glance.</p>
+      </div>
+
+      <!-- Question Breakdown -->
+      <div class="glass fc rv" style="transition-delay:0.24s">
+        <div class="shim"></div>
+        <div class="ficon"><svg fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <h3 class="fh">Question Breakdown</h3>
+        <p class="fp">Enter earned vs. available marks per question. Colour-coded bars and running totals show exactly where marks leaked — per module, per test.</p>
+      </div>
+
+      <!-- Privacy -->
+      <div class="glass fc rv" style="transition-delay:0.28s">
+        <div class="shim"></div>
+        <div class="ficon"><svg fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <h3 class="fh">100% Local &amp; Private</h3>
+        <p class="fp">No account. No server. No cloud. All your marks live in your browser's localStorage — only you can access them.</p>
+      </div>
+
+      <!-- Insights -->
+      <div class="glass fc rv" style="transition-delay:0.32s">
+        <div class="shim"></div>
+        <div class="ficon"><svg fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+        <h3 class="fh">Performance Insights</h3>
+        <p class="fp">Trajectory chart, trend indicators, priority flags for at-risk modules, and automatically generated study recommendations based on your actual marks.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ─── HOW IT WORKS ─── -->
+<section class="sec" id="how" aria-label="How it works">
+  <div class="wrap">
+    <div class="shdr rv" style="text-align:center;margin:0 auto 3.5rem;max-width:520px">
+      <span class="stag">How it works</span>
+      <h2 class="sh2">Set up in under<br>two minutes</h2>
+      <p class="ssub" style="margin:0 auto">No signup. No download. Three steps and your dashboard is live.</p>
+    </div>
+    <div class="steps">
+      <div class="glass step rv" style="transition-delay:0.04s">
+        <div class="shim"></div>
+        <span class="step-num">01</span>
+        <div class="step-conn"></div>
+        <h3 class="step-h">Tell us your programme</h3>
+        <p class="step-p">Enter your name, institution, and the four CTA modules you're being assessed on. Assign each a colour — consistent across every dashboard view.</p>
+        <span class="pill">● Setup · ~30 seconds</span>
+      </div>
+      <div class="glass step rv" style="transition-delay:0.12s">
+        <div class="shim"></div>
+        <span class="step-num">02</span>
+        <div class="step-conn"></div>
+        <h3 class="step-h">Enter your marks</h3>
+        <p class="step-p">Add Feb, Apr, and Jun percentages as each result comes in. Weighted score, half-year mark, and Sep target update automatically per module.</p>
+        <span class="pill">● Live calculation</span>
+      </div>
+      <div class="glass step rv" style="transition-delay:0.20s">
+        <div class="shim"></div>
+        <span class="step-num">03</span>
+        <h3 class="step-h">Track, plan, and revise</h3>
+        <p class="step-p">Run Sep scenarios in the Planner. Grade past papers in the AI Grader. Follow the Study Schedule day by day. Update marks as they come in.</p>
+        <span class="pill">● Ongoing all year</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── MODULES ─── -->
+<section class="sec" id="modules" aria-label="CTA modules">
+  <div class="wrap">
+    <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:4.5rem;align-items:start">
+      <div class="rv">
+        <span class="stag">The Modules</span>
+        <h2 class="sh2">Four subjects.<br>One dashboard.</h2>
+        <p class="ssub" style="margin-bottom:2rem">The four CTA integrated assessments — consistently weighted and tracked together so you always see the full picture.</p>
+        <div class="glass" style="padding:1.3rem 1.5rem;border-radius:15px">
+          <div class="shim"></div>
+          <div style="font-size:0.56rem;color:var(--faint);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.9rem;font-weight:800">Assessment Weights</div>
+          <div style="display:flex;flex-direction:column;gap:0.55rem">
+            <div class="wbar-row"><span class="wbar-lbl">FEB</span><div class="wbar-track"><div class="wbar-fill" style="width:10%;opacity:0.35"></div></div><span class="wbar-val">10%</span></div>
+            <div class="wbar-row"><span class="wbar-lbl">APR</span><div class="wbar-track"><div class="wbar-fill" style="width:15%;opacity:0.45"></div></div><span class="wbar-val">15%</span></div>
+            <div class="wbar-row"><span class="wbar-lbl" style="color:rgba(255,255,255,0.75)">JUN</span><div class="wbar-track"><div class="wbar-fill" style="width:30%;opacity:0.7"></div></div><span class="wbar-val" style="color:rgba(255,255,255,0.75)">30%</span></div>
+            <div class="wbar-row"><span class="wbar-lbl" style="color:#fff">SEP</span><div class="wbar-track"><div class="wbar-fill" style="width:45%;opacity:1"></div></div><span class="wbar-val" style="color:#fff">45%</span></div>
+          </div>
+          <div style="margin-top:1rem;padding-top:0.9rem;border-top:1px solid var(--border);font-size:0.62rem;color:var(--faint)">Sep carries the most weight. The Planner shows exactly what you need per module.</div>
+        </div>
+      </div>
+
+      <div class="mods-grid rv" style="transition-delay:0.1s">
+        <div class="glass mod-card" style="border-left:2px solid rgba(255,255,255,0.55)">
+          <div class="shim"></div>
+          <div class="mod-hdr"><span class="mod-dot" style="background:rgba(255,255,255,0.7)"></span><span class="mod-code">FAC</span><span class="mod-name">Financial Accounting</span></div>
+          <div class="mod-ws">
+            <div class="mod-w"><span class="mod-wl">Feb</span><span class="mod-wv">10%</span></div>
+            <div class="mod-w"><span class="mod-wl">Apr</span><span class="mod-wv">15%</span></div>
+            <div class="mod-w"><span class="mod-wl">Jun</span><span class="mod-wv">30%</span></div>
+            <div class="mod-w"><span class="mod-wl">Sep</span><span class="mod-wv">45%</span></div>
+          </div>
+          <p class="mod-desc">IFRS 9, IAS 32, IFRS 16, IFRS 15, IFRS 2, Deferred Tax, Consolidations, IAS 7 Cash Flows</p>
+        </div>
+        <div class="glass mod-card" style="border-left:2px solid rgba(255,255,255,0.38)">
+          <div class="shim"></div>
+          <div class="mod-hdr"><span class="mod-dot" style="background:rgba(255,255,255,0.45)"></span><span class="mod-code">AUC</span><span class="mod-name">Auditing &amp; Control</span></div>
+          <div class="mod-ws">
+            <div class="mod-w"><span class="mod-wl">Feb</span><span class="mod-wv">10%</span></div>
+            <div class="mod-w"><span class="mod-wl">Apr</span><span class="mod-wv">15%</span></div>
+            <div class="mod-w"><span class="mod-wl">Jun</span><span class="mod-wv">30%</span></div>
+            <div class="mod-w"><span class="mod-wl">Sep</span><span class="mod-wv">45%</span></div>
+          </div>
+          <p class="mod-desc">ISAs, Risk Assessment, King IV, Companies Act, CPC, Business Ethics, Reporting</p>
+        </div>
+        <div class="glass mod-card" style="border-left:2px solid rgba(255,255,255,0.25)">
+          <div class="shim"></div>
+          <div class="mod-hdr"><span class="mod-dot" style="background:rgba(255,255,255,0.3)"></span><span class="mod-code">TAX</span><span class="mod-name">Taxation</span></div>
+          <div class="mod-ws">
+            <div class="mod-w"><span class="mod-wl">Feb</span><span class="mod-wv">10%</span></div>
+            <div class="mod-w"><span class="mod-wl">Apr</span><span class="mod-wv">15%</span></div>
+            <div class="mod-w"><span class="mod-wl">Jun</span><span class="mod-wv">30%</span></div>
+            <div class="mod-w"><span class="mod-wl">Sep</span><span class="mod-wv">45%</span></div>
+          </div>
+          <p class="mod-desc">Residency, CGT, VAT, Allowances, Transfer Pricing, Provisional Tax, Trusts, Donations Tax</p>
+        </div>
+        <div class="glass mod-card" style="border-left:2px solid rgba(255,255,255,0.14)">
+          <div class="shim"></div>
+          <div class="mod-hdr"><span class="mod-dot" style="background:rgba(255,255,255,0.18)"></span><span class="mod-code">MAF</span><span class="mod-name">Management Accounting</span></div>
+          <div class="mod-ws">
+            <div class="mod-w"><span class="mod-wl">Feb</span><span class="mod-wv">10%</span></div>
+            <div class="mod-w"><span class="mod-wl">Apr</span><span class="mod-wv">15%</span></div>
+            <div class="mod-w"><span class="mod-wl">Jun</span><span class="mod-wv">30%</span></div>
+            <div class="mod-w"><span class="mod-wl">Sep</span><span class="mod-wv">45%</span></div>
+          </div>
+          <p class="mod-desc">Cost Accounting, ERM, Capital Budgeting, Transfer Pricing, Valuations, Working Capital</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── PRIVACY ─── -->
+<section class="sec" id="privacy" aria-label="Privacy">
+  <div class="wrap">
+    <div class="priv-grid">
+      <div class="rv">
+        <span class="stag">Privacy first</span>
+        <h2 class="sh2">Your marks.<br>Your device.<br>Nobody else.</h2>
+        <p class="ssub" style="margin-bottom:2.2rem">No account, no analytics, no cloud — because we never asked for access in the first place.</p>
+        <a href="index.html" class="btn-p">Open Dashboard — Free →</a>
+      </div>
+      <div class="priv-items rv" style="transition-delay:0.1s">
+        <div class="priv-item">
+          <div class="priv-icon"><svg fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <div><div class="priv-h">Stored in localStorage</div><p class="priv-p">All data writes to your browser's localStorage API. It never leaves your device — clearing your browser data removes it.</p></div>
+        </div>
+        <div class="priv-item">
+          <div class="priv-icon"><svg fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></div>
+          <div><div class="priv-h">Zero tracking</div><p class="priv-p">No analytics scripts. No user IDs. No cookies. We don't know you opened this page — and that's intentional.</p></div>
+        </div>
+        <div class="priv-item">
+          <div class="priv-icon"><svg fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <div><div class="priv-h">No account required</div><p class="priv-p">Open the app, complete the 3-step setup, and your dashboard is live. No email, no password, no verification.</p></div>
+        </div>
+        <div class="priv-item">
+          <div class="priv-icon"><svg fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><polyline points="22 2 11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div>
+          <div><div class="priv-h">AI Grader is optional</div><p class="priv-p">Uses the Anthropic API with your own key. Your exam answers go directly to Claude — not through any server of ours.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FINAL CTA ─── -->
+<section class="cta-sec" aria-label="Call to action">
+  <div class="wrap">
+    <div class="glass rv" style="padding:4.2rem 3rem;text-align:center;max-width:660px;margin:0 auto">
+      <div class="shim"></div>
+      <div class="cta-badge" aria-hidden="true">CTA</div>
+      <h2 class="cta-h2">Ready to know<br>where you stand?</h2>
+      <p class="cta-sub">Set up your dashboard in 2 minutes. Know what you need, where you're at, and how to get there — before September arrives.</p>
+      <div style="display:flex;gap:0.9rem;justify-content:center;flex-wrap:wrap">
+        <a href="index.html" class="btn-p">Start Tracking Free →</a>
+        <a href="#features" class="btn-s">Explore features</a>
+      </div>
+      <p class="cta-note">No account &nbsp;·&nbsp; No cost &nbsp;·&nbsp; Works offline &nbsp;·&nbsp; Data stays on your device</p>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="foot-inner">
+    <div class="foot-copy">© 2026 CTA Mark Dashboard — PGDA Academic Tracker.</div>
+    <div class="foot-links">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="index.html">Open App →</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ── NAV SCROLL ── */
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => { nav.classList.toggle('scrolled', window.scrollY > 50); }, { passive:true });
+
+/* ── WIREFRAME GLOBE ── */
+(function() {
+  const canvas = document.getElementById('globe-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const CX = W / 2, CY = H / 2;
+  const RADIUS = 1;
+  const LAT_N = 12, LON_N = 18, SEG = 80;
+  const ROT_X = 0.22; // fixed tilt
+  let rotY = 0, frameAlpha = 0;
+
+  // Build sphere lines
+  const lines = [];
+
+  // Latitude rings
+  for (let i = 1; i < LAT_N; i++) {
+    const phi = Math.PI * i / LAT_N;
+    const y = RADIUS * Math.cos(phi);
+    const r = RADIUS * Math.sin(phi);
+    const pts = [];
+    for (let j = 0; j <= SEG; j++) {
+      const theta = 2 * Math.PI * j / SEG;
+      pts.push([r * Math.cos(theta), y, r * Math.sin(theta)]);
+    }
+    lines.push(pts);
+  }
+
+  // Longitude arcs
+  for (let i = 0; i < LON_N; i++) {
+    const theta = 2 * Math.PI * i / LON_N;
+    const pts = [];
+    for (let j = 0; j <= SEG; j++) {
+      const phi = Math.PI * j / SEG;
+      const r = RADIUS * Math.sin(phi);
+      pts.push([r * Math.cos(theta), RADIUS * Math.cos(phi), r * Math.sin(theta)]);
+    }
+    lines.push(pts);
+  }
+
+  function transform(p) {
+    let [x, y, z] = p;
+    // Y rotation (spin)
+    const cy = Math.cos(rotY), sy = Math.sin(rotY);
+    const x1 = x * cy - z * sy;
+    const z1 = x * sy + z * cy;
+    // X rotation (tilt)
+    const cx_ = Math.cos(ROT_X), sx = Math.sin(ROT_X);
+    const y2 = y * cx_ - z1 * sx;
+    const z2 = y * sx  + z1 * cx_;
+    return [x1, y2, z2];
+  }
+
+  function project(p) {
+    const [x, y, z] = p;
+    const D = 3.2; // perspective distance
+    const scale = (W * 0.415) * D / (D + z + 1.8);
+    return { sx: x * scale + CX, sy: -y * scale + CY, z };
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    if (frameAlpha >= 1) {
+      lines.forEach(pts => {
+        const transformed = pts.map(p => {
+          const t = transform(p);
+          return Object.assign(project(t), { z: t[2] });
+        });
+        for (let i = 0; i < transformed.length - 1; i++) {
+          const a = transformed[i], b = transformed[i+1];
+          const z = (a.z + b.z) / 2;
+          const alpha = Math.max(0, Math.min(0.52, (z + RADIUS + 0.5) / (2 * RADIUS + 0.5) * 0.52));
+          ctx.beginPath();
+          ctx.moveTo(a.sx, a.sy);
+          ctx.lineTo(b.sx, b.sy);
+          ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+          ctx.lineWidth = 0.75;
+          ctx.stroke();
+        }
+      });
+    } else {
+      // Draw with fade-in alpha
+      frameAlpha = Math.min(1, frameAlpha + 0.008);
+      lines.forEach(pts => {
+        const transformed = pts.map(p => {
+          const t = transform(p);
+          return Object.assign(project(t), { z: t[2] });
+        });
+        for (let i = 0; i < transformed.length - 1; i++) {
+          const a = transformed[i], b = transformed[i+1];
+          const z = (a.z + b.z) / 2;
+          const depth = Math.max(0, Math.min(0.52, (z + RADIUS + 0.5) / (2 * RADIUS + 0.5) * 0.52));
+          const alpha = depth * frameAlpha;
+          ctx.beginPath();
+          ctx.moveTo(a.sx, a.sy);
+          ctx.lineTo(b.sx, b.sy);
+          ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+          ctx.lineWidth = 0.75;
+          ctx.stroke();
+        }
+      });
+    }
+    rotY += 0.0038;
+    requestAnimationFrame(draw);
+  }
+
+  // Show the wrapper and start drawing after a short delay
+  setTimeout(() => {
+    document.getElementById('globe-wrap').classList.add('visible');
+    draw();
+  }, 300);
+})();
+
+/* ── CYCLING TEXT ── */
+(function() {
+  const phrases = [
+    'monitor your marks',
+    'plan your September',
+    'identify weak spots',
+    'gain key insights',
+    'adjust your schedule',
+  ];
+  let idx = 0;
+  const el = document.getElementById('cycle-el');
+  if (!el) return;
+
+  function cycle() {
+    el.classList.add('fade-out');
+    setTimeout(() => {
+      idx = (idx + 1) % phrases.length;
+      el.textContent = phrases[idx];
+      el.classList.remove('fade-out');
+      el.classList.add('fade-in');
+      setTimeout(() => el.classList.remove('fade-in'), 400);
+    }, 360);
+  }
+
+  setInterval(cycle, 2800);
+})();
+
+/* ── SCROLL REVEAL ── */
+const rvEls = document.querySelectorAll('.rv');
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+}, { threshold:0.07, rootMargin:'0px 0px -24px 0px' });
+rvEls.forEach(el => io.observe(el));
+</script>
+</body>
+</html>
