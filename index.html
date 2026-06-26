@@ -2588,6 +2588,11 @@ if (loadUserData()) {
   console.log('User data loaded, showing dashboard');
   SEP_EXAM = new Date(USER_SETTINGS.examDate || '2026-09-08T08:00:00');
   switchTab('overview');
+  // Remove intro overlay since user has already set up
+  setTimeout(() => {
+    const intro = document.getElementById('intro-overlay');
+    if (intro) intro.remove();
+  }, 100);
 } else {
   console.log('No user data, showing onboarding');
   MODS = [{id:'DEMO',name:'Demo Module',code:'DEM001',color:'#ffffff',feb:null,apr:null,jun:null,junRaw:null,junTotal:100,junStatus:'pending',breakdown:[],priorities:[]}];
