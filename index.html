@@ -789,8 +789,8 @@ button, [onclick]:not(input):not(select):not(textarea) { cursor: pointer; }
      ════════════════════════════════════════════ -->
 <div id="intro-overlay" style="position:fixed;inset:0;z-index:9998;overflow:hidden;">
 
-  <!-- Shared aurora background -->
-  <div style="position:absolute;inset:0;background-image:url('./assets/bg-portrait.jpg');background-size:cover;background-position:center;z-index:0"></div>
+  <!-- Clean background -->
+  <div style="position:absolute;inset:0;background:#000000;z-index:0"></div>
   <div class="b b1" style="z-index:1"></div>
   <div class="b b2" style="z-index:1"></div>
   <div class="b b3" style="z-index:1"></div>
@@ -843,9 +843,9 @@ button, [onclick]:not(input):not(select):not(textarea) { cursor: pointer; }
       Open Dashboard &nbsp;&nbsp;→
     </button>
 
-    <!-- Auto-countdown hint -->
+    <!-- Skip hint -->
     <div style="opacity:0;animation:introFadeIn 0.5s 3.6s ease forwards;font-size:0.52rem;color:rgba(255,255,255,0.2);margin-top:1.4rem;font-family:'JetBrains Mono',monospace;letter-spacing:0.04em">
-      auto-opens in <span id="intro-countdown">6</span>s &nbsp;·&nbsp; click anywhere to skip
+      click anywhere to continue
     </div>
   </div>
 
@@ -2548,8 +2548,8 @@ function switchTab(tab) {
     if (_count <= 0) { clearInterval(_timer); openDashboard(); }
   }
 
-  // Start countdown after 3.5s (button is visible by then)
-  setTimeout(() => { _timer = setInterval(tick, 1000); }, 3500);
+  // Auto-open disabled - let users click to continue
+  // Users can click the button or anywhere on the intro to proceed
 
   // Click anywhere on the intro (not the button) also opens
   const overlay = document.getElementById('intro-overlay');
