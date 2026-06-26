@@ -38,7 +38,7 @@ body { display: flex; position: relative; }
 ══════════════════════════════════════════════ */
 #bg-aurora {
   position: fixed; inset: 0; z-index: 0;
-  background-image: url('./assets/bg-portrait.jpg');
+  background-image: url('./assets/bg-sphere.svg');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -935,17 +935,114 @@ function resetAllData() {
   showOnboarding();
 }
 
+/* ─── SOUTH AFRICAN UNIVERSITIES ─── */
+const SA_UNIVERSITIES = [
+  'University of Cape Town', 'University of the Witwatersrand', 'University of Johannesburg',
+  'Stellenbosch University', 'University of Pretoria', 'University of Kwazulu-Natal',
+  'University of the Western Cape', 'University of Salford Manchester', 'Rhodes University',
+  'University of Venda', 'Tshwane University of Technology', 'University of Limpopo',
+  'Nelson Mandela University', 'University of the Free State', 'Durban University of Technology',
+  'University of South Africa (UNISA)', 'Sefako Makgatho Health Sciences University',
+  'Central University of Technology', 'Mangosuthu University of Technology'
+];
+
+/* ─── COURSE & MODULES DEFINITIONS ─── */
+const COURSE_PROGRAMS = {
+  'PGDA': {
+    name: 'CTA PGDA',
+    years: 1,
+    modules: [
+      { name: 'Financial Accounting', code: 'FAC8X00', color: '#fb7185' },
+      { name: 'Auditing & Control', code: 'AUC8X00', color: '#60a5fa' },
+      { name: 'Taxation', code: 'TAX8X00', color: '#4ade80' },
+      { name: 'Management Accounting', code: 'MAF8X00', color: '#fbbf24' }
+    ]
+  },
+  'BCOM-ACC': {
+    name: 'Bachelor of Commerce (Accounting)',
+    years: 3,
+    modulesByYear: {
+      '1': [
+        { name: 'Financial Accounting 1A', code: 'FAC1A01', color: '#fb7185' },
+        { name: 'Management Accounting 1A', code: 'ACC1A01', color: '#fbbf24' },
+        { name: 'Business Mathematics 1A', code: 'MAT1A01', color: '#34d399' },
+        { name: 'Business Statistics 1A', code: 'STA1A01', color: '#22d3ee' }
+      ],
+      '2': [
+        { name: 'Financial Accounting 2A', code: 'FAC2A01', color: '#fb7185' },
+        { name: 'Management Accounting 2A', code: 'ACC2A01', color: '#fbbf24' },
+        { name: 'Auditing Fundamentals', code: 'AUD2A01', color: '#60a5fa' },
+        { name: 'Taxation 2A', code: 'TAX2A01', color: '#4ade80' }
+      ],
+      '3': [
+        { name: 'Advanced Financial Accounting', code: 'FAC3A01', color: '#fb7185' },
+        { name: 'Advanced Management Accounting', code: 'ACC3A01', color: '#fbbf24' },
+        { name: 'Auditing & Control', code: 'AUD3A01', color: '#60a5fa' },
+        { name: 'Advanced Taxation', code: 'TAX3A01', color: '#4ade80' }
+      ]
+    }
+  },
+  'BACC': {
+    name: 'Bachelor of Accounting',
+    years: 3,
+    modulesByYear: {
+      '1': [
+        { name: 'Financial Reporting & Analysis 1', code: 'FRA1001', color: '#fb7185' },
+        { name: 'Cost & Management Accounting 1', code: 'CMA1001', color: '#fbbf24' },
+        { name: 'Accounting Information Systems', code: 'AIS1001', color: '#22d3ee' },
+        { name: 'Business Law 1', code: 'LAW1001', color: '#c084fc' }
+      ],
+      '2': [
+        { name: 'Financial Reporting & Analysis 2', code: 'FRA2001', color: '#fb7185' },
+        { name: 'Cost & Management Accounting 2', code: 'CMA2001', color: '#fbbf24' },
+        { name: 'Auditing & Assurance', code: 'AUD2001', color: '#60a5fa' },
+        { name: 'Taxation 2', code: 'TAX2001', color: '#4ade80' }
+      ],
+      '3': [
+        { name: 'Advanced Financial Reporting', code: 'AFR3001', color: '#fb7185' },
+        { name: 'Advanced Management Accounting', code: 'AMA3001', color: '#fbbf24' },
+        { name: 'Audit & Corporate Governance', code: 'ACG3001', color: '#60a5fa' },
+        { name: 'Advanced Taxation', code: 'ATX3001', color: '#4ade80' }
+      ]
+    }
+  },
+  'BCTA': {
+    name: 'Bachelor of Commerce (CTA Stream)',
+    years: 3,
+    modulesByYear: {
+      '1': [
+        { name: 'Financial Accounting 1', code: 'FAC1001', color: '#fb7185' },
+        { name: 'Management Accounting 1', code: 'MAN1001', color: '#fbbf24' },
+        { name: 'Business Mathematics 1', code: 'MAT1001', color: '#34d399' },
+        { name: 'Accounting Information Systems 1', code: 'AIS1001', color: '#22d3ee' }
+      ],
+      '2': [
+        { name: 'Financial Accounting 2', code: 'FAC2001', color: '#fb7185' },
+        { name: 'Management Accounting 2', code: 'MAN2001', color: '#fbbf24' },
+        { name: 'Auditing 2', code: 'AUD2001', color: '#60a5fa' },
+        { name: 'Taxation 2', code: 'TAX2001', color: '#4ade80' }
+      ],
+      '3': [
+        { name: 'Advanced Financial Accounting', code: 'FAC3001', color: '#fb7185' },
+        { name: 'Advanced Management Accounting', code: 'MAN3001', color: '#fbbf24' },
+        { name: 'Auditing & Control', code: 'AUD3001', color: '#60a5fa' },
+        { name: 'Corporate Taxation', code: 'TAX3001', color: '#4ade80' }
+      ]
+    }
+  }
+};
+
 /* ─── ONBOARDING WIZARD ─── */
 let obStep = 1;
 let obModules = [{ id:'MOD1', name:'', code:'', color:'#fb7185' }];
-let obSettings = { name:'', program:'', institution:'', examDate:'2026-09-08' };
+let obSettings = { name:'', university:'', course:'', year:'', examDate:'2026-09-08' };
 
 const MOD_COLORS = ['#fb7185','#60a5fa','#4ade80','#fbbf24','#c084fc','#34d399','#f97316','#22d3ee'];
 
 function showOnboarding() {
   obStep = 1;
-  obModules = [{ id:'MOD1', name:'', code:'', color:MOD_COLORS[0] }];
-  obSettings = { name:'', program:'', institution:'', examDate:'2026-09-08' };
+  obModules = [];
+  obSettings = { name:'', university:'', course:'', year:'', examDate:'2026-09-08' };
   renderOnboarding();
 }
 
@@ -959,17 +1056,22 @@ function renderOnboarding() {
   })();
   overlay.style.display = 'flex';
 
-  const steps = ['Program','Modules','Marks'];
-  const prog = steps.map((s,i)=>`
+  const stepLabels = ['Your Info', 'Select Course', 'Modules', 'Marks'];
+  const prog = stepLabels.map((s,i)=>`
     <div style="display:flex;align-items:center;gap:0.4rem">
       <div style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.5rem;font-weight:800;font-family:var(--mono);
         ${obStep===i+1?'background:#ffffff;color:#000;':'background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.4);'}">${i+1}</div>
       <span style="font-size:0.55rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:${obStep===i+1?'#ffffff':'rgba(255,255,255,0.3)'}">${s}</span>
-      ${i<2?'<span style="color:rgba(255,255,255,0.15);font-size:0.6rem">›</span>':''}
+      ${i<3?'<span style="color:rgba(255,255,255,0.15);font-size:0.6rem">›</span>':''}
     </div>`).join('');
 
   let body = '';
+  let title = '';
+  let subtitle = '';
+
   if (obStep === 1) {
+    title = 'Tell us about you';
+    subtitle = 'Quick setup — all data stays on your device.';
     body = `
       <div style="margin-bottom:1.2rem">
         <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Your Name</div>
@@ -978,16 +1080,12 @@ function renderOnboarding() {
           oninput="obSettings.name=this.value"/>
       </div>
       <div style="margin-bottom:1.2rem">
-        <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Program / Qualification</div>
-        <input id="ob-prog" type="text" placeholder="e.g. CTA PGDA 2026 · BCom Honours" value="${obSettings.program}"
-          style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.65rem 0.85rem;color:#fff;font-size:0.7rem;outline:none;font-family:Inter,sans-serif"
-          oninput="obSettings.program=this.value"/>
-      </div>
-      <div style="margin-bottom:1.2rem">
-        <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Institution</div>
-        <input id="ob-inst" type="text" placeholder="e.g. University of Johannesburg" value="${obSettings.institution}"
-          style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.65rem 0.85rem;color:#fff;font-size:0.7rem;outline:none;font-family:Inter,sans-serif"
-          oninput="obSettings.institution=this.value"/>
+        <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">University</div>
+        <select id="ob-uni" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.65rem 0.85rem;color:#fff;font-size:0.7rem;outline:none;font-family:Inter,sans-serif"
+          onchange="obSettings.university=this.value">
+          <option value="">Select a university...</option>
+          ${SA_UNIVERSITIES.map(u=>`<option value="${u}" ${obSettings.university===u?'selected':''}>${u}</option>`).join('')}
+        </select>
       </div>
       <div style="margin-bottom:1.2rem">
         <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Final Exam Date</div>
@@ -996,17 +1094,47 @@ function renderOnboarding() {
           oninput="obSettings.examDate=this.value"/>
       </div>`;
   } else if (obStep === 2) {
+    title = 'Select your course';
+    subtitle = 'Choose your qualification and year of study.';
+    const courses = Object.keys(COURSE_PROGRAMS).map(key => ({ key, ...COURSE_PROGRAMS[key] }));
     body = `
-      <div id="ob-mods-list">
+      <div style="margin-bottom:1.2rem">
+        <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Course / Qualification</div>
+        <select id="ob-course" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.65rem 0.85rem;color:#fff;font-size:0.7rem;outline:none;font-family:Inter,sans-serif"
+          onchange="obSettings.course=this.value;renderOnboarding()">
+          <option value="">Select a course...</option>
+          ${courses.map(c=>`<option value="${c.key}" ${obSettings.course===c.key?'selected':''}>${c.name}</option>`).join('')}
+        </select>
+      </div>`;
+
+    if (obSettings.course) {
+      const prog = COURSE_PROGRAMS[obSettings.course];
+      if (prog.years > 1) {
+        body += `
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Year of Study</div>
+            <select id="ob-year" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.65rem 0.85rem;color:#fff;font-size:0.7rem;outline:none;font-family:Inter,sans-serif"
+              onchange="obSettings.year=this.value;autoPopulateModules()">
+              <option value="">Select year...</option>
+              ${Array.from({length:prog.years},(_,i)=>`<option value="${i+1}" ${obSettings.year==i+1?'selected':''}>Year ${i+1}</option>`).join('')}
+            </select>
+          </div>`;
+      }
+    }
+  } else if (obStep === 3) {
+    title = 'Review your modules';
+    subtitle = 'These are auto-populated. You can add more or customize them.';
+    body = `
+      <div id="ob-mods-list" style="max-height:300px;overflow-y:auto;margin-bottom:1rem">
         ${obModules.map((m,i)=>`
           <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.6rem">
             <input type="color" value="${m.color}" title="Module colour"
               style="width:32px;height:32px;border:none;background:none;cursor:pointer;border-radius:6px;padding:2px"
               oninput="obModules[${i}].color=this.value;renderOnboarding()"/>
-            <input type="text" placeholder="Module name (e.g. Financial Accounting)" value="${m.name}"
+            <input type="text" placeholder="Module name" value="${m.name}"
               style="flex:2;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.55rem 0.75rem;color:#fff;font-size:0.65rem;outline:none;font-family:Inter,sans-serif"
               oninput="obModules[${i}].name=this.value"/>
-            <input type="text" placeholder="Code (e.g. FAC8X00)" value="${m.code}"
+            <input type="text" placeholder="Code" value="${m.code}"
               style="flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.55rem 0.75rem;color:#fff;font-size:0.65rem;outline:none;font-family:var(--mono)"
               oninput="obModules[${i}].code=this.value"/>
             ${obModules.length>1?`<button onclick="obModules.splice(${i},1);renderOnboarding()" style="background:rgba(251,113,133,0.15);border:1px solid rgba(251,113,133,0.3);color:#fb7185;border-radius:7px;padding:0.4rem 0.6rem;cursor:pointer;font-size:0.6rem">✕</button>`:''}
@@ -1014,73 +1142,107 @@ function renderOnboarding() {
       </div>
       ${obModules.length < 8 ? `
         <button onclick="obModules.push({id:'MOD'+(obModules.length+1),name:'',code:'',color:MOD_COLORS[obModules.length%8]});renderOnboarding()"
-          style="width:100%;padding:0.55rem;background:rgba(255,255,255,0.05);border:1px dashed rgba(255,255,255,0.2);border-radius:10px;color:rgba(255,255,255,0.45);font-size:0.6rem;cursor:pointer;margin-top:0.3rem">
+          style="width:100%;padding:0.55rem;background:rgba(255,255,255,0.05);border:1px dashed rgba(255,255,255,0.2);border-radius:10px;color:rgba(255,255,255,0.45);font-size:0.6rem;cursor:pointer">
           + Add module
         </button>` : ''}`;
-  } else if (obStep === 3) {
+  } else if (obStep === 4) {
+    title = 'Enter your marks';
+    subtitle = 'Leave blank if not yet completed.';
     body = `
-      <div style="font-size:0.6rem;color:var(--muted);margin-bottom:1rem">Enter percentage marks for each assessment. Leave blank if not yet completed.</div>
-      ${obModules.map((m,i)=>`
-        <div style="margin-bottom:1.1rem;padding:0.85rem 1rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-left:3px solid ${m.color};border-radius:10px">
-          <div style="font-size:0.6rem;font-weight:700;color:#fff;margin-bottom:0.7rem">${m.name||'Module '+(i+1)}</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem">
-            ${[['Feb','feb','10% weight'],['Apr','apr','15% weight'],['Jun','jun','30% weight']].map(([label,key,hint])=>`
-              <div>
-                <div style="font-size:0.5rem;color:var(--faint);margin-bottom:0.2rem;font-family:var(--mono)">${label} <span style="opacity:0.5">${hint}</span></div>
-                <input type="number" min="0" max="100" step="0.01" placeholder="—" value="${m[key]??''}"
-                  style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:8px;padding:0.45rem 0.6rem;color:#fff;font-size:0.65rem;outline:none;font-family:var(--mono)"
-                  oninput="obModules[${i}]['${key}']=this.value===''?null:parseFloat(this.value)"/>
-              </div>`).join('')}
-          </div>
-        </div>`).join('')}`;
+      <div style="max-height:350px;overflow-y:auto">
+        ${obModules.map((m,i)=>`
+          <div style="margin-bottom:1.1rem;padding:0.85rem 1rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-left:3px solid ${m.color};border-radius:10px">
+            <div style="font-size:0.6rem;font-weight:700;color:#fff;margin-bottom:0.7rem">${m.name||'Module '+(i+1)}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem">
+              ${[['Feb','feb','10% weight'],['Apr','apr','15% weight'],['Jun','jun','30% weight']].map(([label,key,hint])=>`
+                <div>
+                  <div style="font-size:0.5rem;color:var(--faint);margin-bottom:0.2rem;font-family:var(--mono)">${label} <span style="opacity:0.5">${hint}</span></div>
+                  <input type="number" min="0" max="100" step="0.01" placeholder="—" value="${m[key]??''}"
+                    style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:8px;padding:0.45rem 0.6rem;color:#fff;font-size:0.65rem;outline:none;font-family:var(--mono)"
+                    oninput="obModules[${i}]['${key}']=this.value===''?null:parseFloat(this.value)"/>
+                </div>`).join('')}
+            </div>
+          </div>`).join('')}
+      </div>`;
   }
 
   overlay.innerHTML = `
-    <div style="background:rgba(8,10,20,0.96);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:2rem 2.2rem;width:min(520px,90vw);max-height:90vh;overflow-y:auto;box-shadow:0 40px 80px rgba(0,0,0,0.8)">
+    <div style="background:rgba(8,10,20,0.96);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:2rem 2.2rem;width:min(540px,90vw);max-height:90vh;overflow-y:auto;box-shadow:0 40px 80px rgba(0,0,0,0.8)">
       <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem">
         <div style="width:28px;height:28px;background:linear-gradient(135deg,#ffffff,#cccccc);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.5rem;font-weight:900;color:#000">MK</div>
         <span style="font-size:0.6rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Marks Dashboard · Setup</span>
       </div>
       <div style="font-size:1.4rem;font-weight:900;letter-spacing:-0.04em;color:#fff;margin-bottom:0.3rem">
-        ${obStep===1?'Tell us about you':obStep===2?'Your modules':' Enter your marks'}
+        ${title}
       </div>
       <div style="font-size:0.6rem;color:var(--muted);margin-bottom:1.4rem">
-        ${obStep===1?'Personalise your dashboard — all data stays on your device.':obStep===2?'Add the modules you\'re being assessed on this year.':'All marks are stored locally. You can update them anytime.'}
+        ${subtitle}
       </div>
-      <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1.5rem">${prog}</div>
+      <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1.5rem;overflow-x:auto;padding-bottom:0.5rem">${prog}</div>
       ${body}
       <div style="display:flex;gap:0.7rem;margin-top:1.5rem;justify-content:flex-end">
         ${obStep>1?`<button onclick="obStep--;renderOnboarding()" style="padding:0.6rem 1.2rem;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:0.65rem;font-weight:600;cursor:pointer">← Back</button>`:''}
         <button onclick="obNext()" style="padding:0.6rem 1.4rem;background:linear-gradient(135deg,#ffffff,#cccccc);border:none;border-radius:10px;color:#000;font-size:0.65rem;font-weight:800;cursor:pointer;letter-spacing:0.01em">
-          ${obStep<3?'Continue →':'Launch Dashboard'}
+          ${obStep<4?'Continue →':'Launch Dashboard'}
         </button>
       </div>
     </div>`;
 }
 
+function autoPopulateModules() {
+  if (!obSettings.course) return;
+  const prog = COURSE_PROGRAMS[obSettings.course];
+  const year = obSettings.year || '1';
+
+  let modules = [];
+  if (prog.modulesByYear && prog.modulesByYear[year]) {
+    modules = prog.modulesByYear[year];
+  } else if (prog.modules) {
+    modules = prog.modules;
+  }
+
+  obModules = modules.map((m, i) => ({
+    id: m.code,
+    name: m.name,
+    code: m.code,
+    color: m.color || MOD_COLORS[i % MOD_COLORS.length],
+    feb: null, apr: null, jun: null
+  }));
+
+  renderOnboarding();
+}
+
 function obNext() {
   if (obStep === 1) {
     obSettings.name = document.getElementById('ob-name')?.value || obSettings.name;
-    obSettings.program = document.getElementById('ob-prog')?.value || obSettings.program;
-    obSettings.institution = document.getElementById('ob-inst')?.value || obSettings.institution;
     obSettings.examDate = document.getElementById('ob-date')?.value || obSettings.examDate;
-    if (!obSettings.program.trim()) { alert('Please enter your program name.'); return; }
+    obSettings.university = document.getElementById('ob-uni')?.value || obSettings.university;
+    if (!obSettings.name.trim()) { alert('Please enter your name.'); return; }
+    if (!obSettings.university.trim()) { alert('Please select a university.'); return; }
     obStep = 2;
     renderOnboarding();
   } else if (obStep === 2) {
-    const valid = obModules.every(m => m.name.trim());
-    if (!valid) { alert('Please enter a name for each module.'); return; }
-    // assign short IDs
-    obModules.forEach((m,i) => { m.id = m.name.substring(0,3).toUpperCase().replace(/\s/g,'') + (i+1); });
+    if (!obSettings.course) { alert('Please select a course.'); return; }
+    const prog = COURSE_PROGRAMS[obSettings.course];
+    if (prog.years > 1 && !obSettings.year) { alert('Please select your year of study.'); return; }
+    autoPopulateModules();
     obStep = 3;
+  } else if (obStep === 3) {
+    if (obModules.length === 0) { alert('Please have at least one module.'); return; }
+    const valid = obModules.every(m => m.name.trim());
+    if (!valid) { alert('Please ensure all modules have names.'); return; }
+    obModules.forEach((m,i) => { m.id = m.code || m.name.substring(0,3).toUpperCase().replace(/\s/g,'') + (i+1); });
+    obStep = 4;
     renderOnboarding();
   } else {
     // Finalise
+    const prog = COURSE_PROGRAMS[obSettings.course];
+    const progName = prog.name + (obSettings.year ? ` · Year ${obSettings.year}` : '');
     USER_SETTINGS = {
       name: obSettings.name,
-      program: obSettings.program,
-      institution: obSettings.institution,
-      examDate: obSettings.examDate + 'T08:00:00',
+      program: progName,
+      institution: obSettings.university,
+      examDate: (document.getElementById('ob-date')?.value || obSettings.examDate) + 'T08:00:00',
       isSetup: true
     };
     SEP_EXAM = new Date(USER_SETTINGS.examDate);
@@ -1151,6 +1313,22 @@ function renderEditMarks() {
         <button onclick="saveProgSettings()" style="flex:1;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:0.65rem;font-weight:700;cursor:pointer">Save Settings</button>
         <button onclick="resetAllData()" style="padding:0.6rem 1rem;background:rgba(251,113,133,0.1);border:1px solid rgba(251,113,133,0.25);border-radius:10px;color:#fb7185;font-size:0.65rem;font-weight:700;cursor:pointer">Reset All Data</button>
       </div>
+    </div>
+    <div class="glass" style="padding:1rem 1.2rem;margin-top:1rem">
+      <div class="shimmer"></div>
+      <div style="font-size:0.6rem;font-weight:700;color:var(--muted);margin-bottom:0.8rem;text-transform:uppercase;letter-spacing:0.06em">Background Settings</div>
+      <div style="margin-bottom:1rem">
+        <div style="font-size:0.5rem;color:var(--faint);margin-bottom:0.5rem">Choose a background style:</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem">
+          <button onclick="setBackground('sphere')" id="bg-sphere" style="padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:0.6rem;font-weight:600;cursor:pointer;transition:all 0.2s">Sphere Glass</button>
+          <button onclick="setBackground('portrait')" id="bg-portrait" style="padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:0.6rem;font-weight:600;cursor:pointer;transition:all 0.2s">Original</button>
+        </div>
+      </div>
+      <div style="margin-bottom:1rem;padding:0.7rem;background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.15);border-radius:8px">
+        <div style="font-size:0.5rem;color:var(--faint);margin-bottom:0.4rem">Or upload your own:</div>
+        <input type="file" id="bg-upload" accept="image/*" onchange="uploadBackground()" style="width:100%;font-size:0.6rem;color:rgba(255,255,255,0.6)"/>
+      </div>
+      <button onclick="saveBackgroundSettings()" style="width:100%;padding:0.6rem;background:linear-gradient(135deg,#ffffff,#cccccc);border:none;border-radius:10px;color:#000;font-size:0.65rem;font-weight:800;cursor:pointer">Save Background</button>
     </div>`;
 }
 
@@ -1168,6 +1346,71 @@ function saveEditMarks() {
   });
   saveUserData();
   switchTab('overview');
+}
+
+function setBackground(style) {
+  window.selectedBackground = style;
+  const btns = document.querySelectorAll('[id^="bg-"]');
+  btns.forEach(b => b.style.background = 'rgba(255,255,255,0.08)');
+  const activeBtn = document.getElementById('bg-' + style);
+  if (activeBtn) {
+    activeBtn.style.background = 'rgba(255,255,255,0.2)';
+    activeBtn.style.borderColor = 'rgba(255,255,255,0.35)';
+  }
+}
+
+function uploadBackground() {
+  const input = document.getElementById('bg-upload');
+  if (input?.files[0]) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      window.selectedBackground = 'custom';
+      window.customBackgroundData = e.target.result;
+      const btns = document.querySelectorAll('[id^="bg-"]');
+      btns.forEach(b => b.style.background = 'rgba(255,255,255,0.08)');
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+function applyBackground(style) {
+  const bgEl = document.getElementById('bg-aurora');
+  if (!bgEl) return;
+
+  if (style === 'sphere') {
+    bgEl.style.backgroundImage = 'url(./assets/bg-sphere.svg)';
+  } else if (style === 'portrait') {
+    bgEl.style.backgroundImage = 'url(./assets/bg-portrait.jpg)';
+  } else if (style === 'custom' && window.customBackgroundData) {
+    bgEl.style.backgroundImage = `url(${window.customBackgroundData})`;
+  }
+}
+
+function saveBackgroundSettings() {
+  const style = window.selectedBackground || 'portrait';
+  try {
+    const bgSettings = { style };
+    if (style === 'custom' && window.customBackgroundData) {
+      bgSettings.customData = window.customBackgroundData;
+    }
+    localStorage.setItem('dashboardBgSettings', JSON.stringify(bgSettings));
+    applyBackground(style);
+    alert('Background saved!');
+  } catch (e) {
+    alert('Error saving background (storage limit may be exceeded for custom images)');
+  }
+}
+
+function loadBackgroundSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('dashboardBgSettings') || '{}');
+    const style = saved.style || 'sphere';
+    window.selectedBackground = style;
+    if (saved.customData) window.customBackgroundData = saved.customData;
+    applyBackground(style);
+  } catch (e) {
+    applyBackground('sphere');
+  }
 }
 
 function saveProgSettings() {
@@ -2337,6 +2580,7 @@ function switchTab(tab) {
 })();
 
 /* ─── INIT ─── */
+loadBackgroundSettings();
 if (loadUserData()) {
   SEP_EXAM = new Date(USER_SETTINGS.examDate || '2026-09-08T08:00:00');
   switchTab('overview');

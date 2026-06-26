@@ -1,0 +1,70 @@
+<svg viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <!-- Main sphere gradient with dithering effect -->
+    <filter id="dither">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" result="noise" />
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="2" />
+    </filter>
+
+    <!-- Sphere lighting -->
+    <radialGradient id="sphereLight" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.8" />
+      <stop offset="20%" style="stop-color:#e8e8e8;stop-opacity:0.6" />
+      <stop offset="50%" style="stop-color:#999999;stop-opacity:0.3" />
+      <stop offset="80%" style="stop-color:#333333;stop-opacity:0.2" />
+      <stop offset="100%" style="stop-color:#000000;stop-opacity:0.3" />
+    </radialGradient>
+
+    <!-- Dithering pattern -->
+    <pattern id="dithPattern" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="4" fill="#ffffff" opacity="0.15"/>
+      <circle cx="1" cy="1" r="0.5" fill="#000000" opacity="0.3"/>
+      <circle cx="3" cy="3" r="0.5" fill="#000000" opacity="0.3"/>
+    </pattern>
+
+    <!-- Glow effect -->
+    <filter id="sphereGlow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Pure black background -->
+  <rect width="1920" height="1080" fill="#000000"/>
+
+  <!-- Main sphere with dithered effect -->
+  <g>
+    <!-- Base sphere shape -->
+    <circle cx="960" cy="540" r="380" fill="url(#sphereLight)" filter="url(#sphereGlow)"/>
+
+    <!-- Dithering overlay on sphere -->
+    <circle cx="960" cy="540" r="380" fill="url(#dithPattern)" opacity="0.6"/>
+
+    <!-- Sphere edge shadow -->
+    <circle cx="960" cy="540" r="380" fill="none" stroke="#000000" stroke-width="40" opacity="0.4"/>
+
+    <!-- Sphere highlight -->
+    <ellipse cx="800" cy="350" rx="120" ry="100" fill="#ffffff" opacity="0.25" filter="url(#sphereGlow)"/>
+
+    <!-- Core light -->
+    <ellipse cx="850" cy="380" rx="80" ry="70" fill="#ffffff" opacity="0.15"/>
+
+    <!-- Secondary reflection -->
+    <ellipse cx="1000" cy="600" rx="60" ry="50" fill="#cccccc" opacity="0.08"/>
+  </g>
+
+  <!-- Subtle ambient lighting -->
+  <circle cx="960" cy="540" r="400" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="80" opacity="0.5"/>
+
+  <!-- Vignette for depth -->
+  <defs>
+    <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" style="stop-color:#000000;stop-opacity:0" />
+      <stop offset="100%" style="stop-color:#000000;stop-opacity:0.3" />
+    </radialGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#vignette)"/>
+</svg>
