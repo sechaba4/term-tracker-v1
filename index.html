@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CTA Mark Dashboard — PGDA 2026</title>
+<title>Term Tracker — Dashboard</title>
+<meta name="description" content="Your Term Tracker dashboard — track every assessment, plan your exams, and study the topics you struggle with.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23050505'/%3E%3Crect x='2.5' y='2.5' width='27' height='27' rx='5.5' fill='none' stroke='rgba(255,255,255,0.22)'/%3E%3Ctext x='16' y='21' font-family='monospace' font-size='11' font-weight='800' fill='%23fff' text-anchor='middle'%3ETT%3C/text%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
@@ -263,7 +266,7 @@ body { display: flex; position: relative; }
   background: transparent; color: var(--muted);
   font-family: inherit; font-size: 0.8rem; font-weight: 500;
   text-align: left; width: 100%; margin-bottom: 0.1rem;
-  transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+  transition: background 0.25s cubic-bezier(0.4,0,0.2,1), border-color 0.25s cubic-bezier(0.4,0,0.2,1), color 0.25s, transform 0.2s cubic-bezier(0.23,1,0.32,1);
   position: relative; overflow: hidden;
 }
 .nav-btn::before {
@@ -278,6 +281,7 @@ body { display: flex; position: relative; }
   color: #fff;
   transform: translateX(3px);
 }
+.nav-btn:active { transform: translateX(3px) scale(0.985); transition-duration: 0.1s; }
 .nav-btn:hover::before { opacity: 1; }
 .nav-btn.active {
   background: linear-gradient(145deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.055) 100%);
@@ -329,6 +333,32 @@ body { display: flex; position: relative; }
 }
 .sb-stat-t { font-size: 0.7rem; font-weight: 700; color: #86efac; display: block; margin-bottom: 0.18rem; }
 .sb-stat-s { font-size: 0.58rem; color: var(--muted); display: block; }
+
+/* Account / sign-out button (student initials) */
+.tt-account {
+  display: flex; align-items: center; gap: 0.6rem; width: 100%;
+  margin-top: 0.75rem; padding: 0.6rem 0.7rem; border-radius: 12px; cursor: pointer;
+  background: rgba(255,255,255,0.045);
+  border: 1px solid rgba(255,255,255,0.10); border-top-color: rgba(255,255,255,0.2);
+  color: var(--muted); font-family: inherit; text-align: left;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+  transition: background 0.2s, border-color 0.2s, transform 0.12s;
+}
+.tt-account:hover { background: rgba(255,255,255,0.085); border-color: rgba(255,255,255,0.2); color: #fff; }
+.tt-account:active { transform: scale(0.98); }
+.tt-avatar {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-weight: 800; font-size: 0.62rem; color: #fff; letter-spacing: -0.01em;
+  background: linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.06));
+  border: 1px solid rgba(255,255,255,0.22); border-top-color: rgba(255,255,255,0.4);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.3);
+}
+.tt-account-meta { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.tt-account-name { font-size: 0.66rem; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tt-account-act  { font-size: 0.52rem; color: var(--faint); letter-spacing: 0.04em; }
+.tt-signout-ic   { width: 14px; height: 14px; flex-shrink: 0; opacity: 0.5; }
+.tt-account:hover .tt-signout-ic { opacity: 0.9; }
 
 /* ══════════════════════════════════════════════
    MAIN CONTENT
@@ -642,9 +672,10 @@ input[type="range"].sep-slider::-webkit-slider-thumb:hover {
   border-radius: 12px; color: #000;
   font-family: inherit; font-size: 0.83rem; font-weight: 700; cursor: pointer;
   box-shadow: 0 8px 28px rgba(255,255,255,0.38), inset 0 1.5px 0 rgba(255,255,255,0.42), inset 0 -1px 0 rgba(0,0,0,0.2);
-  transition: all 0.22s; letter-spacing: 0.01em;
+  transition: box-shadow 0.22s cubic-bezier(0.23,1,0.32,1), transform 0.18s cubic-bezier(0.23,1,0.32,1), background 0.22s; letter-spacing: 0.01em;
 }
 .g-btn:hover { box-shadow: 0 12px 38px rgba(255,255,255,0.55), inset 0 1.5px 0 rgba(255,255,255,0.50); transform: translateY(-2px); }
+.g-btn:active { transform: translateY(0) scale(0.985); box-shadow: 0 5px 18px rgba(255,255,255,0.3), inset 0 1.5px 0 rgba(255,255,255,0.42); transition-duration: 0.1s; }
 .g-btn:disabled { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.1); color: var(--muted); cursor: not-allowed; box-shadow: none; transform: none; }
 .g-err  { font-size: 0.67rem; color: #fb7185; margin-bottom: 0.72rem; }
 .api-note {
@@ -889,8 +920,18 @@ button, [onclick]:not(input):not(select):not(textarea) { cursor: pointer; }
 <div class="sidebar" id="sidebar"></div>
 <div class="main" id="main"></div>
 
+<!-- Term Tracker core: auth + memory (Supabase-ready, localStorage fallback) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="tt-core.js"></script>
+<!-- pdf.js for on-device syllabus/learner-guide parsing -->
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>
-console.log('Dashboard loading...');
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  }
+</script>
+
+<script>
 /* ─── NAV ICONS (inline SVG) ─── */
 const NAV_ICONS = {
   overview: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.5"/></svg>`,
@@ -924,15 +965,31 @@ function loadUserData() {
 }
 
 function saveUserData() {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify({ isSetup:true, modules:MODS, settings:USER_SETTINGS }));
-  } catch(e) {}
+  const profile = { isSetup:true, modules:MODS, settings:USER_SETTINGS };
+  // Per-account memory (cloud when configured, else this browser)
+  try { if (window.TTStore) TTStore.saveProfile(profile); } catch(e) {}
+  // Legacy/local mirror so the app still opens instantly offline
+  try { localStorage.setItem(LS_KEY, JSON.stringify(profile)); } catch(e) {}
+}
+
+/* Hydrate MODS / USER_SETTINGS from the signed-in account's saved profile. */
+async function hydrateFromAccount() {
+  let p = null;
+  try { if (window.TTStore) p = await TTStore.loadProfile(); } catch(e) {}
+  if (!p) { try { p = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch(e) {} }
+  if (p && p.isSetup && Array.isArray(p.modules) && p.modules.length > 0) {
+    MODS = p.modules;
+    USER_SETTINGS = { ...USER_SETTINGS, ...p.settings };
+    return true;
+  }
+  return false;
 }
 
 function resetAllData() {
   if (!confirm('This will clear all your marks and settings. Are you sure?')) return;
   localStorage.removeItem(LS_KEY);
-  MODS = []; USER_SETTINGS = { name:'', program:'My Program', institution:'', examDate:'2026-09-08T08:00:00', isSetup:false };
+  MODS = []; USER_SETTINGS = { name:'', program:'My Program', institution:'', examDate:'', year:'', isSetup:false, hasExamData:false };
+  try { if (window.TTStore) TTStore.saveProfile({ isSetup:false, modules:[], settings:USER_SETTINGS }); } catch(e) {}
   showOnboarding();
 }
 
@@ -1577,19 +1634,27 @@ document.addEventListener('mousemove', e => {
 });
 
 /* ─── SIDEBAR ─── */
+function ttInitials() {
+  const u = (window.TTAuth && TTAuth.currentUser && TTAuth.currentUser()) || null;
+  if (u && u.initials) return u.initials;
+  const f = USER_SETTINGS.firstName || '', l = USER_SETTINGS.lastName || '';
+  const ini = ((f[0]||'') + (l[0]||'')).toUpperCase();
+  return ini || (USER_SETTINGS.name||'S').substring(0,1).toUpperCase();
+}
 function renderSidebar() {
   const passed = MODS.filter(m=>m.junStatus==='pass').length;
   const failed = MODS.filter(m=>m.junStatus==='fail').length;
-  const logoText = (USER_SETTINGS.program || 'Marks').substring(0,8);
+  const hasExam = !!(USER_SETTINGS.hasExamData && USER_SETTINGS.examDate);
   document.getElementById('sidebar').innerHTML = `
     <div class="logo">
-      <div class="logo-icon">${logoText.substring(0,3).toUpperCase()}</div>
-      <div><span class="logo-name">${USER_SETTINGS.program || 'My Dashboard'}</span><span class="logo-sub">${USER_SETTINGS.institution || 'Academic Tracker'}</span></div>
+      <div class="logo-icon">TT</div>
+      <div><span class="logo-name">Term Tracker</span><span class="logo-sub">${USER_SETTINGS.institution || 'Academic Tracker'}</span></div>
     </div>
     <div class="nav-sec">Main</div>
     ${nb('overview','OV','Overview')}
-    ${nb('insights','IN','Insights')}
-    ${nb('planner','SP','Sep Planner')}
+    ${nb('insights','IN','Tips & Insights')}
+    ${hasExam ? nb('planner','SP','Test Tracker') : ''}
+    ${nb('flashcards','FC','Flashcards')}
     ${nb('schedule','SC','Study Schedule')}
     ${nb('tracker','TR','Task Tracker')}
     <div class="nav-sec">Modules</div>
@@ -1607,11 +1672,24 @@ function renderSidebar() {
     ${nb('editmarks','ED','Edit Marks')}
     ${nb('grader','GR','Exam Grader')}
     <div class="sb-footer">
-      <div class="sb-stat">
+      ${MODS.length ? `<div class="sb-stat">
         <span class="sb-stat-t">${passed} of ${MODS.length} passed</span>
-        <span class="sb-stat-s">${failed>0?`${failed} module${failed>1?'s':''} need${failed===1?'s':''} Sep focus`:'Keep it up!'}</span>
-      </div>
+        <span class="sb-stat-s">${failed>0?`${failed} module${failed>1?'s':''} need${failed===1?'s':''} focus`:'Keep it up!'}</span>
+      </div>` : ''}
+      <button class="tt-account" onclick="ttSignOut()" title="Sign out" aria-label="Sign out of ${(USER_SETTINGS.name||'your account')}">
+        <span class="tt-avatar">${ttInitials()}</span>
+        <span class="tt-account-meta">
+          <span class="tt-account-name">${USER_SETTINGS.name || 'Your account'}</span>
+          <span class="tt-account-act">Sign out</span>
+        </span>
+        <svg class="tt-signout-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 14H3.5A1.5 1.5 0 0 1 2 12.5v-9A1.5 1.5 0 0 1 3.5 2H6"/><path d="M10.5 11 14 8l-3.5-3M14 8H6"/></svg>
+      </button>
     </div>`;
+}
+
+async function ttSignOut() {
+  try { if (window.TTAuth) await TTAuth.signOut(); } catch(e) {}
+  location.replace('landing.html');
 }
 function nb(tab, icon, label) {
   const svg = NAV_ICONS[tab] || `<span style="font-size:0.48rem;font-weight:800;letter-spacing:-0.02em;color:rgba(255,255,255,0.32)">${icon}</span>`;
@@ -2580,28 +2658,35 @@ function switchTab(tab) {
   };
 })();
 
-/* ─── INIT ─── */
-console.log('Init starting...');
-loadBackgroundSettings();
-console.log('Background loaded');
-if (loadUserData()) {
-  console.log('User data loaded, showing dashboard');
-  SEP_EXAM = new Date(USER_SETTINGS.examDate || '2026-09-08T08:00:00');
-  switchTab('overview');
-  // Remove intro overlay since user has already set up
-  setTimeout(() => {
-    const intro = document.getElementById('intro-overlay');
-    if (intro) intro.remove();
-  }, 100);
-} else {
-  console.log('No user data, showing onboarding');
-  MODS = [{id:'DEMO',name:'Demo Module',code:'DEM001',color:'#ffffff',feb:null,apr:null,jun:null,junRaw:null,junTotal:100,junStatus:'pending',breakdown:[],priorities:[]}];
-  renderSidebar();
-  console.log('Sidebar rendered');
-  showOnboarding();
-  console.log('Onboarding shown');
-}
-console.log('Init complete');
+/* ─── INIT (auth-gated, account-backed) ─── */
+(async function init() {
+  // The landing page is the front door now — drop the legacy intro overlay.
+  const intro = document.getElementById('intro-overlay');
+  if (intro) intro.remove();
+
+  loadBackgroundSettings();
+
+  // Wait for the auth layer, then require a signed-in user.
+  try { if (window.TTAuth && TTAuth.ready) await TTAuth.ready; } catch(e) {}
+  const user = (window.TTAuth ? TTAuth.currentUser() : null);
+  if (!user) { location.replace('landing.html'); return; }
+
+  // Pull this account's saved profile.
+  const has = await hydrateFromAccount();
+  if (has) {
+    if (USER_SETTINGS.examDate) SEP_EXAM = new Date(USER_SETTINGS.examDate);
+    renderSidebar();
+    switchTab('overview');
+  } else {
+    // New account → prefill name from the auth identity and start onboarding.
+    USER_SETTINGS.firstName = user.firstName || '';
+    USER_SETTINGS.lastName  = user.lastName || '';
+    USER_SETTINGS.name      = ((user.firstName||'') + ' ' + (user.lastName||'')).trim();
+    MODS = [];
+    renderSidebar();
+    showOnboarding();
+  }
+})();
 </script>
 </body>
 </html>
