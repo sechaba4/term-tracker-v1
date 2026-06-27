@@ -1091,230 +1091,321 @@ const COURSE_PROGRAMS = {
 };
 
 /* ─── ONBOARDING WIZARD ─── */
-let obStep = 1;
-let obModules = [{ id:'MOD1', name:'', code:'', color:'#fb7185' }];
-let obSettings = { name:'', university:'', course:'', year:'', examDate:'2026-09-08' };
-
 const MOD_COLORS = ['#fb7185','#60a5fa','#4ade80','#fbbf24','#c084fc','#34d399','#f97316','#22d3ee'];
+const OB_STEPS = ['You', 'Upload', 'Modules', 'Marks'];
 
-function showOnboarding() {
-  obStep = 1;
-  obModules = [];
-  obSettings = { name:'', university:'', course:'', year:'', examDate:'2026-09-08' };
+let ob = null;
+function obBlank() {
+  return {
+    step: 1,
+    firstName: USER_SETTINGS.firstName || '',
+    lastName:  USER_SETTINGS.lastName  || '',
+    university:'', year:'',
+    modules: [],            // {id,name,code,color,struggles}
+    timeline: [],           // {name,type,date(ISO|null),weight,module}
+    examDate: null,         // earliest exam-type dated item
+    hasExamData: false,
+    parsing: false,
+    parseNote: '',
+  };
+}
+function showOnboarding() { ob = obBlank(); renderOnboarding(); }
+
+/* ════════ ON-DEVICE PDF PARSING (pdf.js) ════════ */
+const MONTHS = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+function ttParseDate(str) {
+  if (!str) return null;
+  str = str.trim();
+  let m;
+  // ISO 2026-03-12
+  if ((m = str.match(/\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/))) {
+    const d = new Date(+m[1], +m[2]-1, +m[3], 12); return isNaN(d) ? null : d;
+  }
+  // 12 March 2026 / 12 Mar 2026
+  if ((m = str.match(/\b(\d{1,2})\s+([A-Za-z]{3,9})\.?\s+(20\d{2})\b/))) {
+    const mo = MONTHS[m[2].slice(0,3).toLowerCase()]; if (mo == null) return null;
+    const d = new Date(+m[3], mo, +m[1], 12); return isNaN(d) ? null : d;
+  }
+  // March 12, 2026
+  if ((m = str.match(/\b([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(20\d{2})\b/))) {
+    const mo = MONTHS[m[1].slice(0,3).toLowerCase()]; if (mo == null) return null;
+    const d = new Date(+m[3], mo, +m[2], 12); return isNaN(d) ? null : d;
+  }
+  // 12/03/2026 (D/M/Y, SA convention)
+  if ((m = str.match(/\b(\d{1,2})[/\-.](\d{1,2})[/\-.](20\d{2})\b/))) {
+    const d = new Date(+m[3], +m[2]-1, +m[1], 12); return isNaN(d) ? null : d;
+  }
+  // Month 2026 -> first of month
+  if ((m = str.match(/\b([A-Za-z]{3,9})\.?\s+(20\d{2})\b/))) {
+    const mo = MONTHS[m[1].slice(0,3).toLowerCase()]; if (mo == null) return null;
+    return new Date(+m[2], mo, 1, 12);
+  }
+  return null;
+}
+function ttClassify(line) {
+  if (/\bexam(ination)?\b/i.test(line)) return 'exam';
+  if (/\b(class\s*test|\btest\b|sep|sept)\b/i.test(line)) return 'test';
+  if (/\b(assignment|project|essay|portfolio|report)\b/i.test(line)) return 'assignment';
+  if (/\bquiz\b/i.test(line)) return 'quiz';
+  if (/\b(assessment|due|submission)\b/i.test(line)) return 'assessment';
+  return null;
+}
+async function ttPdfText(file) {
+  if (!window.pdfjsLib) throw new Error('PDF reader unavailable');
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let text = '';
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    // group items into lines by their y position
+    const rows = {};
+    content.items.forEach(it => {
+      const y = Math.round(it.transform[5]);
+      (rows[y] = rows[y] || []).push(it.str);
+    });
+    Object.keys(rows).sort((a,b)=>b-a).forEach(y => { text += rows[y].join(' ') + '\n'; });
+  }
+  return text;
+}
+function ttExtractAssessments(text) {
+  const out = [];
+  const codes = new Set();
+  text.split('\n').forEach(raw => {
+    const line = raw.replace(/\s+/g,' ').trim();
+    if (line.length < 4) return;
+    const codeM = line.match(/\b([A-Z]{2,4}\s?\d[A-Z0-9]{2,5})\b/);
+    if (codeM) codes.add(codeM[1].replace(/\s/,''));
+    const type = ttClassify(line);
+    const date = ttParseDate(line);
+    const wM = line.match(/(\d{1,3})\s*%/);
+    if (type && (date || wM)) {
+      // build a short name from the line (strip the date/percent noise)
+      let name = line.replace(/\b\d{1,2}[:h]\d{2}\b/g,'').slice(0, 64).trim();
+      out.push({
+        name: name || (type[0].toUpperCase()+type.slice(1)),
+        type,
+        date: date ? date.toISOString() : null,
+        weight: wM ? Math.min(100, +wM[1]) : null,
+        module: codeM ? codeM[1].replace(/\s/,'') : '',
+      });
+    }
+  });
+  return { assessments: out, codes: [...codes] };
+}
+async function obHandleFiles(fileList) {
+  const files = [...fileList].filter(f => /pdf$/i.test(f.name) || f.type === 'application/pdf');
+  if (!files.length) { ob.parseNote = 'Please choose PDF files (learner guide, syllabus or timetable).'; renderOnboarding(); return; }
+  ob.parsing = true; ob.parseNote = 'Reading ' + files.length + ' file' + (files.length>1?'s':'') + '…'; renderOnboarding();
+  let all = [], codes = new Set();
+  for (const f of files) {
+    try {
+      const text = await ttPdfText(f);
+      const r = ttExtractAssessments(text);
+      r.assessments.forEach(a => all.push(a));
+      r.codes.forEach(c => codes.add(c));
+    } catch (e) { /* skip unreadable file */ }
+  }
+  // de-dupe by name+date
+  const seen = new Set();
+  ob.timeline = all.filter(a => { const k = a.name+'|'+a.date; if (seen.has(k)) return false; seen.add(k); return true; });
+  // create modules from detected codes if we have none yet
+  if (!ob.modules.length && codes.size) {
+    ob.modules = [...codes].slice(0,8).map((c,i) => ({ id:c, name:c, code:c, color:MOD_COLORS[i%8], struggles:'' }));
+  }
+  // exam date for the countdown
+  const examDates = ob.timeline.filter(a => a.type === 'exam' && a.date).map(a => a.date).sort();
+  const anyDates  = ob.timeline.filter(a => a.date).map(a => a.date).sort();
+  ob.examDate = examDates[0] || anyDates[0] || null;
+  ob.hasExamData = !!ob.examDate;
+  ob.parsing = false;
+  ob.parseNote = ob.timeline.length
+    ? ('Found ' + ob.timeline.length + ' dated item' + (ob.timeline.length>1?'s':'') + (codes.size?(' across ' + codes.size + ' module code'+(codes.size>1?'s':'')):'') + '.')
+    : 'No dated assessments detected — you can still add modules manually (the countdown stays hidden until you add exam dates).';
   renderOnboarding();
 }
+function obUseCTA() {
+  ob.modules = COURSE_PROGRAMS['PGDA'].modules.map((m,i)=>({ id:m.code, name:m.name, code:m.code, color:m.color||MOD_COLORS[i%8], struggles:'' }));
+  renderOnboarding();
+}
+
+function obBack() { if (ob.step > 1) { ob.step--; renderOnboarding(); } }
 
 function renderOnboarding() {
   const overlay = document.getElementById('ob-overlay') || (() => {
     const el = document.createElement('div');
     el.id = 'ob-overlay';
-    el.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.88);backdrop-filter:blur(12px)';
+    el.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.88);backdrop-filter:blur(12px);padding:1.2rem';
     document.body.appendChild(el);
     return el;
   })();
   overlay.style.display = 'flex';
 
-  const stepLabels = ['Your Info', 'Select Course', 'Modules', 'Marks'];
-  const prog = stepLabels.map((s,i)=>`
+  const prog = OB_STEPS.map((s,i)=>`
     <div style="display:flex;align-items:center;gap:0.4rem">
       <div style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.5rem;font-weight:800;font-family:var(--mono);
-        ${obStep===i+1?'background:#ffffff;color:#000;':'background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.4);'}">${i+1}</div>
-      <span style="font-size:0.55rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:${obStep===i+1?'#ffffff':'rgba(255,255,255,0.3)'}">${s}</span>
-      ${i<3?'<span style="color:rgba(255,255,255,0.15);font-size:0.6rem">›</span>':''}
+        ${ob.step===i+1?'background:#fff;color:#000;':ob.step>i+1?'background:rgba(74,222,128,0.25);color:#86efac;':'background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.4);'}">${ob.step>i+1?'✓':i+1}</div>
+      <span style="font-size:0.55rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:${ob.step>=i+1?'#fff':'rgba(255,255,255,0.3)'}">${s}</span>
+      ${i<OB_STEPS.length-1?'<span style="color:rgba(255,255,255,0.15);font-size:0.6rem">›</span>':''}
     </div>`).join('');
 
-  let body = '';
-  let title = '';
-  let subtitle = '';
+  const inS = 'width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.62rem 0.8rem;color:#fff;font-size:0.72rem;outline:none;font-family:Inter,sans-serif';
+  const lblS = 'font-size:0.55rem;color:var(--muted);margin-bottom:0.3rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em';
+  let title='', subtitle='', body='';
 
-  if (obStep === 1) {
+  if (ob.step === 1) {
     title = 'Tell us about you';
-    subtitle = 'Quick setup — all data stays on your device.';
+    subtitle = 'No student number needed — just enough to personalise your tracker.';
     body = `
-      <div style="margin-bottom:1.2rem">
-        <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Your Name</div>
-        <input id="ob-name" type="text" placeholder="e.g. Sechaba Mashinini" value="${obSettings.name}"
-          style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.65rem 0.85rem;color:#fff;font-size:0.7rem;outline:none;font-family:Inter,sans-serif"
-          oninput="obSettings.name=this.value"/>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;margin-bottom:1rem">
+        <div><div style="${lblS}">Name</div>
+          <input type="text" placeholder="Sechaba" value="${ob.firstName}" style="${inS}" oninput="ob.firstName=this.value"/></div>
+        <div><div style="${lblS}">Surname</div>
+          <input type="text" placeholder="Mashinini" value="${ob.lastName}" style="${inS}" oninput="ob.lastName=this.value"/></div>
       </div>
-      <div style="margin-bottom:1.2rem">
-        <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">University</div>
-        <select id="ob-uni" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.65rem 0.85rem;color:#fff;font-size:0.7rem;outline:none;font-family:Inter,sans-serif"
-          onchange="obSettings.university=this.value">
-          <option value="">Select a university...</option>
-          ${SA_UNIVERSITIES.map(u=>`<option value="${u}" ${obSettings.university===u?'selected':''}>${u}</option>`).join('')}
+      <div style="margin-bottom:1rem"><div style="${lblS}">University</div>
+        <select style="${inS}" onchange="ob.university=this.value">
+          <option value="">Select your university…</option>
+          ${SA_UNIVERSITIES.map(u=>`<option value="${u}" ${ob.university===u?'selected':''}>${u}</option>`).join('')}
+          <option value="__other__" ${ob.university&&!SA_UNIVERSITIES.includes(ob.university)?'selected':''}>Other / not listed</option>
         </select>
+        <input type="text" placeholder="Or type your institution" value="${ob.university&&!SA_UNIVERSITIES.includes(ob.university)?ob.university:''}" style="${inS};margin-top:0.5rem" oninput="ob.university=this.value"/>
       </div>
-      <div style="margin-bottom:1.2rem">
-        <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Final Exam Date</div>
-        <input id="ob-date" type="date" value="${obSettings.examDate}"
-          style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.65rem 0.85rem;color:#fff;font-size:0.7rem;outline:none;font-family:Inter,sans-serif;color-scheme:dark"
-          oninput="obSettings.examDate=this.value"/>
-      </div>`;
-  } else if (obStep === 2) {
-    title = 'Select your course';
-    subtitle = 'Choose your qualification and year of study.';
-    const courses = Object.keys(COURSE_PROGRAMS).map(key => ({ key, ...COURSE_PROGRAMS[key] }));
-    body = `
-      <div style="margin-bottom:1.2rem">
-        <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Course / Qualification</div>
-        <select id="ob-course" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.65rem 0.85rem;color:#fff;font-size:0.7rem;outline:none;font-family:Inter,sans-serif"
-          onchange="obSettings.course=this.value;renderOnboarding()">
-          <option value="">Select a course...</option>
-          ${courses.map(c=>`<option value="${c.key}" ${obSettings.course===c.key?'selected':''}>${c.name}</option>`).join('')}
+      <div style="margin-bottom:0.4rem"><div style="${lblS}">Year of study</div>
+        <select style="${inS}" onchange="ob.year=this.value">
+          <option value="">Select your year…</option>
+          ${['1','2','3','4','5','Honours / PGDA','Postgraduate'].map(y=>`<option value="${y}" ${ob.year===y?'selected':''}>${/^\d$/.test(y)?'Year '+y:y}</option>`).join('')}
         </select>
       </div>`;
-
-    if (obSettings.course) {
-      const prog = COURSE_PROGRAMS[obSettings.course];
-      if (prog.years > 1) {
-        body += `
-          <div style="margin-bottom:1.2rem">
-            <div style="font-size:0.55rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Year of Study</div>
-            <select id="ob-year" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.65rem 0.85rem;color:#fff;font-size:0.7rem;outline:none;font-family:Inter,sans-serif"
-              onchange="obSettings.year=this.value;autoPopulateModules()">
-              <option value="">Select year...</option>
-              ${Array.from({length:prog.years},(_,i)=>`<option value="${i+1}" ${obSettings.year==i+1?'selected':''}>Year ${i+1}</option>`).join('')}
-            </select>
-          </div>`;
-      }
-    }
-  } else if (obStep === 3) {
-    title = 'Review your modules';
-    subtitle = 'These are auto-populated. You can add more or customize them.';
+  } else if (ob.step === 2) {
+    title = 'Upload your learner guides';
+    subtitle = 'Drop in a syllabus, learner guide or exam timetable (PDF). Term Tracker reads it on your device to find your assessment dates and weightings — the file never leaves your browser.';
+    const items = ob.timeline.slice(0,6).map(a => {
+      const d = a.date ? new Date(a.date).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}) : 'no date';
+      const tag = a.type.charAt(0).toUpperCase()+a.type.slice(1);
+      return `<div style="display:flex;align-items:center;gap:0.5rem;padding:0.45rem 0.6rem;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);margin-bottom:0.35rem">
+        <span style="font-size:0.46rem;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:#c084fc;background:rgba(192,132,252,0.12);border:1px solid rgba(192,132,252,0.3);border-radius:5px;padding:0.1rem 0.34rem;font-family:var(--mono)">${tag}</span>
+        <span style="flex:1;font-size:0.6rem;color:rgba(255,255,255,0.8);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.name}</span>
+        <span style="font-size:0.55rem;color:var(--muted);font-family:var(--mono)">${d}${a.weight!=null?' · '+a.weight+'%':''}</span>
+      </div>`;
+    }).join('');
     body = `
-      <div id="ob-mods-list" style="max-height:300px;overflow-y:auto;margin-bottom:1rem">
-        ${obModules.map((m,i)=>`
-          <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.6rem">
-            <input type="color" value="${m.color}" title="Module colour"
-              style="width:32px;height:32px;border:none;background:none;cursor:pointer;border-radius:6px;padding:2px"
-              oninput="obModules[${i}].color=this.value;renderOnboarding()"/>
-            <input type="text" placeholder="Module name" value="${m.name}"
-              style="flex:2;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.55rem 0.75rem;color:#fff;font-size:0.65rem;outline:none;font-family:Inter,sans-serif"
-              oninput="obModules[${i}].name=this.value"/>
-            <input type="text" placeholder="Code" value="${m.code}"
-              style="flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.55rem 0.75rem;color:#fff;font-size:0.65rem;outline:none;font-family:var(--mono)"
-              oninput="obModules[${i}].code=this.value"/>
-            ${obModules.length>1?`<button onclick="obModules.splice(${i},1);renderOnboarding()" style="background:rgba(251,113,133,0.15);border:1px solid rgba(251,113,133,0.3);color:#fb7185;border-radius:7px;padding:0.4rem 0.6rem;cursor:pointer;font-size:0.6rem">✕</button>`:''}
-          </div>`).join('')}
-      </div>
-      ${obModules.length < 8 ? `
-        <button onclick="obModules.push({id:'MOD'+(obModules.length+1),name:'',code:'',color:MOD_COLORS[obModules.length%8]});renderOnboarding()"
-          style="width:100%;padding:0.55rem;background:rgba(255,255,255,0.05);border:1px dashed rgba(255,255,255,0.2);border-radius:10px;color:rgba(255,255,255,0.45);font-size:0.6rem;cursor:pointer">
-          + Add module
-        </button>` : ''}`;
-  } else if (obStep === 4) {
-    title = 'Enter your marks';
-    subtitle = 'Leave blank if not yet completed.';
+      <label style="display:flex;flex-direction:column;align-items:center;gap:0.5rem;padding:1.6rem;border-radius:14px;cursor:pointer;background:rgba(255,255,255,0.04);border:1.5px dashed rgba(255,255,255,0.22);text-align:center;transition:background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.07)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+        <svg width="26" height="26" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span style="font-size:0.72rem;font-weight:700;color:#fff">Choose PDF file(s)</span>
+        <span style="font-size:0.56rem;color:var(--faint)">Learner guide · syllabus · exam timetable</span>
+        <input type="file" accept="application/pdf,.pdf" multiple style="display:none" onchange="obHandleFiles(this.files)"/>
+      </label>
+      ${ob.parsing?`<div style="text-align:center;font-size:0.62rem;color:var(--muted);margin-top:0.9rem">${ob.parseNote}</div>`:''}
+      ${!ob.parsing&&ob.parseNote?`<div style="font-size:0.6rem;color:${ob.timeline.length?'#86efac':'var(--warn)'};margin:0.9rem 0 0.6rem;line-height:1.5">${ob.parseNote}</div>`:''}
+      ${items?`<div style="margin-top:0.4rem;max-height:170px;overflow-y:auto">${items}${ob.timeline.length>6?`<div style="font-size:0.54rem;color:var(--faint);text-align:center;margin-top:0.3rem">+ ${ob.timeline.length-6} more</div>`:''}</div>`:''}
+      <div style="font-size:0.55rem;color:var(--faint);margin-top:0.9rem;line-height:1.6">No PDF handy? You can skip this and add modules manually — the exam countdown simply stays hidden until dates exist.</div>`;
+  } else if (ob.step === 3) {
+    title = 'Your modules & weak spots';
+    subtitle = 'Confirm your modules, and tell us which sections you find hardest — your Tips & Insights and Flashcards are built from these.';
     body = `
-      <div style="max-height:350px;overflow-y:auto">
-        ${obModules.map((m,i)=>`
-          <div style="margin-bottom:1.1rem;padding:0.85rem 1rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-left:3px solid ${m.color};border-radius:10px">
-            <div style="font-size:0.6rem;font-weight:700;color:#fff;margin-bottom:0.7rem">${m.name||'Module '+(i+1)}</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem">
-              ${[['Feb','feb','10% weight'],['Apr','apr','15% weight'],['Jun','jun','30% weight']].map(([label,key,hint])=>`
-                <div>
-                  <div style="font-size:0.5rem;color:var(--faint);margin-bottom:0.2rem;font-family:var(--mono)">${label} <span style="opacity:0.5">${hint}</span></div>
-                  <input type="number" min="0" max="100" step="0.01" placeholder="—" value="${m[key]??''}"
-                    style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:8px;padding:0.45rem 0.6rem;color:#fff;font-size:0.65rem;outline:none;font-family:var(--mono)"
-                    oninput="obModules[${i}]['${key}']=this.value===''?null:parseFloat(this.value)"/>
-                </div>`).join('')}
+      <div style="max-height:320px;overflow-y:auto;margin:-0.2rem -0.2rem 0.6rem;padding:0.2rem">
+        ${ob.modules.map((m,i)=>`
+          <div style="padding:0.8rem;border-radius:12px;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-left:3px solid ${m.color};margin-bottom:0.6rem">
+            <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem">
+              <input type="color" value="${m.color}" title="Colour" style="width:30px;height:30px;border:none;background:none;cursor:pointer;border-radius:6px;padding:2px" oninput="ob.modules[${i}].color=this.value;renderOnboarding()"/>
+              <input type="text" placeholder="Module name" value="${m.name}" style="flex:2;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:9px;padding:0.5rem 0.7rem;color:#fff;font-size:0.66rem;outline:none;font-family:Inter,sans-serif" oninput="ob.modules[${i}].name=this.value"/>
+              <input type="text" placeholder="Code" value="${m.code}" style="flex:1;min-width:60px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:9px;padding:0.5rem 0.7rem;color:#fff;font-size:0.62rem;outline:none;font-family:var(--mono)" oninput="ob.modules[${i}].code=this.value"/>
+              ${ob.modules.length>1?`<button onclick="ob.modules.splice(${i},1);renderOnboarding()" style="background:rgba(251,113,133,0.15);border:1px solid rgba(251,113,133,0.3);color:#fb7185;border-radius:7px;padding:0.4rem 0.55rem;cursor:pointer;font-size:0.6rem">✕</button>`:''}
             </div>
+            <textarea placeholder="Sections / topics you struggle with (e.g. consolidations, deferred tax, leases)" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.5rem 0.65rem;color:#fff;font-size:0.62rem;outline:none;font-family:Inter,sans-serif;resize:vertical;min-height:42px;line-height:1.5" oninput="ob.modules[${i}].struggles=this.value">${m.struggles||''}</textarea>
           </div>`).join('')}
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+        ${ob.modules.length<8?`<button onclick="ob.modules.push({id:'MOD'+(ob.modules.length+1),name:'',code:'',color:MOD_COLORS[ob.modules.length%8],struggles:''});renderOnboarding()" style="flex:1;min-width:130px;padding:0.55rem;background:rgba(255,255,255,0.05);border:1px dashed rgba(255,255,255,0.2);border-radius:10px;color:rgba(255,255,255,0.5);font-size:0.6rem;cursor:pointer">+ Add module</button>`:''}
+        <button onclick="obUseCTA()" style="flex:1;min-width:130px;padding:0.55rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:var(--muted);font-size:0.6rem;cursor:pointer">Use CTA PGDA modules</button>
+      </div>`;
+  } else {
+    title = 'Add any marks you have';
+    subtitle = 'Optional — enter what you already know. You can update these any time from Edit Marks.';
+    body = `
+      <div style="max-height:330px;overflow-y:auto">
+        ${ob.modules.map((m,i)=>{
+          const cnt = ob.timeline.filter(a=>a.module===m.code).length;
+          return `<div style="margin-bottom:0.9rem;padding:0.8rem;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-left:3px solid ${m.color};border-radius:10px">
+            <div style="font-size:0.62rem;font-weight:700;color:#fff;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center">
+              <span>${m.name||'Module '+(i+1)}</span>
+              ${cnt?`<span style="font-size:0.5rem;color:var(--faint);font-weight:600">${cnt} assessment${cnt>1?'s':''} detected</span>`:''}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem">
+              ${[['Feb','feb','10%'],['Apr','apr','15%'],['Jun','jun','30%']].map(([lab,key,w])=>`
+                <div><div style="font-size:0.46rem;color:var(--faint);margin-bottom:0.18rem;font-family:var(--mono)">${lab} <span style="opacity:0.6">${w}</span></div>
+                  <input type="number" min="0" max="100" step="0.01" placeholder="—" value="${m[key]??''}" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:8px;padding:0.42rem 0.55rem;color:#fff;font-size:0.64rem;outline:none;font-family:var(--mono)" oninput="ob.modules[${i}]['${key}']=this.value===''?null:parseFloat(this.value)"/></div>`).join('')}
+            </div>
+          </div>`;
+        }).join('')}
       </div>`;
   }
 
   overlay.innerHTML = `
-    <div style="background:rgba(8,10,20,0.96);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:2rem 2.2rem;width:min(540px,90vw);max-height:90vh;overflow-y:auto;box-shadow:0 40px 80px rgba(0,0,0,0.8)">
-      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem">
-        <div style="width:28px;height:28px;background:linear-gradient(135deg,#ffffff,#cccccc);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.5rem;font-weight:900;color:#000">MK</div>
-        <span style="font-size:0.6rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Marks Dashboard · Setup</span>
+    <div style="background:rgba(8,10,20,0.97);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:1.9rem 2rem;width:min(560px,94vw);max-height:92vh;overflow-y:auto;box-shadow:0 40px 80px rgba(0,0,0,0.8)">
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">
+        <div style="width:28px;height:28px;background:linear-gradient(135deg,#fff,#ccc);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.5rem;font-weight:900;color:#000;font-family:var(--mono)">TT</div>
+        <span style="font-size:0.58rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Term Tracker · Setup</span>
       </div>
-      <div style="font-size:1.4rem;font-weight:900;letter-spacing:-0.04em;color:#fff;margin-bottom:0.3rem">
-        ${title}
-      </div>
-      <div style="font-size:0.6rem;color:var(--muted);margin-bottom:1.4rem">
-        ${subtitle}
-      </div>
-      <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1.5rem;overflow-x:auto;padding-bottom:0.5rem">${prog}</div>
+      <div style="font-size:1.35rem;font-weight:900;letter-spacing:-0.04em;color:#fff;margin-bottom:0.3rem">${title}</div>
+      <div style="font-size:0.62rem;color:var(--muted);margin-bottom:1.3rem;line-height:1.6">${subtitle}</div>
+      <div style="display:flex;gap:0.8rem;align-items:center;margin-bottom:1.4rem;overflow-x:auto;padding-bottom:0.4rem">${prog}</div>
       ${body}
       <div style="display:flex;gap:0.7rem;margin-top:1.5rem;justify-content:flex-end">
-        ${obStep>1?`<button onclick="obStep--;renderOnboarding()" style="padding:0.6rem 1.2rem;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:0.65rem;font-weight:600;cursor:pointer">← Back</button>`:''}
-        <button onclick="obNext()" style="padding:0.6rem 1.4rem;background:linear-gradient(135deg,#ffffff,#cccccc);border:none;border-radius:10px;color:#000;font-size:0.65rem;font-weight:800;cursor:pointer;letter-spacing:0.01em">
-          ${obStep<4?'Continue →':'Launch Dashboard'}
-        </button>
+        ${ob.step>1?`<button onclick="obBack()" style="padding:0.6rem 1.2rem;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:0.66rem;font-weight:600;cursor:pointer">← Back</button>`:''}
+        <button onclick="obNext()" style="padding:0.6rem 1.5rem;background:linear-gradient(135deg,#fff,#ccc);border:none;border-radius:10px;color:#000;font-size:0.66rem;font-weight:800;cursor:pointer">${ob.step<4?'Continue →':'Launch dashboard'}</button>
       </div>
     </div>`;
 }
 
-function autoPopulateModules() {
-  if (!obSettings.course) return;
-  const prog = COURSE_PROGRAMS[obSettings.course];
-  const year = obSettings.year || '1';
-
-  let modules = [];
-  if (prog.modulesByYear && prog.modulesByYear[year]) {
-    modules = prog.modulesByYear[year];
-  } else if (prog.modules) {
-    modules = prog.modules;
-  }
-
-  obModules = modules.map((m, i) => ({
-    id: m.code,
-    name: m.name,
-    code: m.code,
-    color: m.color || MOD_COLORS[i % MOD_COLORS.length],
-    feb: null, apr: null, jun: null
-  }));
-
-  renderOnboarding();
-}
-
 function obNext() {
-  if (obStep === 1) {
-    obSettings.name = document.getElementById('ob-name')?.value || obSettings.name;
-    obSettings.examDate = document.getElementById('ob-date')?.value || obSettings.examDate;
-    obSettings.university = document.getElementById('ob-uni')?.value || obSettings.university;
-    if (!obSettings.name.trim()) { alert('Please enter your name.'); return; }
-    if (!obSettings.university.trim()) { alert('Please select a university.'); return; }
-    obStep = 2;
+  if (ob.step === 1) {
+    if (!ob.firstName.trim() || !ob.lastName.trim()) { alert('Please enter your name and surname.'); return; }
+    if (!ob.university.trim()) { alert('Please choose or type your university.'); return; }
+    if (!ob.year) { alert('Please select your year of study.'); return; }
+    ob.step = 2; renderOnboarding();
+  } else if (ob.step === 2) {
+    ob.step = 3;
+    if (!ob.modules.length) ob.modules = [{ id:'MOD1', name:'', code:'', color:MOD_COLORS[0], struggles:'' }];
     renderOnboarding();
-  } else if (obStep === 2) {
-    if (!obSettings.course) { alert('Please select a course.'); return; }
-    const prog = COURSE_PROGRAMS[obSettings.course];
-    if (prog.years > 1 && !obSettings.year) { alert('Please select your year of study.'); return; }
-    autoPopulateModules();
-    obStep = 3;
-  } else if (obStep === 3) {
-    if (obModules.length === 0) { alert('Please have at least one module.'); return; }
-    const valid = obModules.every(m => m.name.trim());
-    if (!valid) { alert('Please ensure all modules have names.'); return; }
-    obModules.forEach((m,i) => { m.id = m.code || m.name.substring(0,3).toUpperCase().replace(/\s/g,'') + (i+1); });
-    obStep = 4;
-    renderOnboarding();
+  } else if (ob.step === 3) {
+    if (!ob.modules.some(m => m.name.trim())) { alert('Please add at least one module with a name.'); return; }
+    ob.modules = ob.modules.filter(m => m.name.trim());
+    ob.modules.forEach((m,i) => { if (!m.code.trim()) m.code = (m.name.substring(0,3).toUpperCase().replace(/\s/g,'')||'MOD') + (i+1); });
+    ob.step = 4; renderOnboarding();
   } else {
     // Finalise
-    const prog = COURSE_PROGRAMS[obSettings.course];
-    const progName = prog.name + (obSettings.year ? ` · Year ${obSettings.year}` : '');
+    const fullName = (ob.firstName + ' ' + ob.lastName).trim();
     USER_SETTINGS = {
-      name: obSettings.name,
-      program: progName,
-      institution: obSettings.university,
-      examDate: (document.getElementById('ob-date')?.value || obSettings.examDate) + 'T08:00:00',
-      isSetup: true
+      ...USER_SETTINGS,
+      name: fullName, firstName: ob.firstName, lastName: ob.lastName,
+      program: ob.year && /^\d$/.test(ob.year) ? ('Year ' + ob.year) : (ob.year || 'My Studies'),
+      institution: ob.university, year: ob.year,
+      examDate: ob.hasExamData && ob.examDate ? ob.examDate : '',
+      hasExamData: ob.hasExamData,
+      timeline: ob.timeline,
+      isSetup: true,
     };
-    SEP_EXAM = new Date(USER_SETTINGS.examDate);
-    MODS = obModules.map(m => ({
-      ...m,
-      jun: m.jun != null ? parseFloat(m.jun) : null,
-      feb: m.feb != null ? parseFloat(m.feb) : null,
-      apr: m.apr != null ? parseFloat(m.apr) : null,
-      junRaw: null, junTotal: 100,
-      junStatus: m.jun != null ? (parseFloat(m.jun) >= 50 ? 'pass' : 'fail') : 'pending',
-      breakdown: [], priorities: []
-    }));
+    if (USER_SETTINGS.examDate) SEP_EXAM = new Date(USER_SETTINGS.examDate);
+    MODS = ob.modules.map(m => {
+      const assessments = ob.timeline.filter(a => a.module && a.module === m.code);
+      const jun = m.jun != null ? parseFloat(m.jun) : null;
+      return {
+        id: m.code, name: m.name, code: m.code, color: m.color,
+        feb: m.feb != null ? parseFloat(m.feb) : null,
+        apr: m.apr != null ? parseFloat(m.apr) : null,
+        jun,
+        junRaw: null, junTotal: 100,
+        junStatus: jun != null ? (jun >= 50 ? 'pass' : 'fail') : 'pending',
+        struggles: (m.struggles||'').trim(),
+        assessments,
+        breakdown: [], priorities: [],
+      };
+    });
     saveUserData();
-    document.getElementById('ob-overlay').style.display = 'none';
+    const ovl = document.getElementById('ob-overlay'); if (ovl) ovl.remove();
+    renderSidebar();
     switchTab('overview');
   }
 }
@@ -1718,10 +1809,11 @@ function renderOverview() {
     <div class="ph">
       <span class="ph-sup">${USER_SETTINGS.program}${USER_SETTINGS.institution?' · '+USER_SETTINGS.institution:''}</span>
       <div class="ph-h1">${passed>0?`${passed} of ${MODS.length} passed`:graded.length>0?'Results pending':'Track your progress'}</div>
-      <span class="ph-sub">${USER_SETTINGS.name?USER_SETTINGS.name+' · ':''}Academic marks tracker · All data stored locally</span>
+      <span class="ph-sub">${USER_SETTINGS.name?USER_SETTINGS.name+' · ':''}${USER_SETTINGS.year?(/^\d$/.test(USER_SETTINGS.year)?'Year '+USER_SETTINGS.year:USER_SETTINGS.year)+' · ':''}Saved to your account</span>
     </div>
 
-    <span class="cd-sup">Final Exam Countdown — ${SEP_EXAM.toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'})}</span>
+    ${(USER_SETTINGS.hasExamData && USER_SETTINGS.examDate) ? `
+    <span class="cd-sup">Next exam — ${SEP_EXAM.toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'})}</span>
     <div class="countdown">
       ${[['d',d,'Days'],['h',h,'Hours'],['m',m,'Minutes'],['s',s,'Seconds']].map(([k,v,l])=>`
         <div class="cd-item glass lift">
@@ -1729,7 +1821,18 @@ function renderOverview() {
           <div class="cd-val" id="cd-${k}">${pad2(v)}</div>
           <div class="cd-label">${l}</div>
         </div>`).join('')}
-    </div>
+    </div>` : `
+    <div class="glass" style="padding:1.1rem 1.3rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:0.85rem">
+      <div class="shimmer"></div>
+      <div style="width:34px;height:34px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12)">
+        <svg width="16" height="16" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:0.72rem;font-weight:700;color:#fff;margin-bottom:0.12rem">Exam countdown is hidden</div>
+        <div style="font-size:0.6rem;color:var(--muted);line-height:1.5">Upload an exam timetable in <strong style="color:#fff">Edit Marks</strong> and your live countdown appears here automatically.</div>
+      </div>
+      <button onclick="switchTab('editmarks')" style="padding:0.5rem 0.9rem;background:rgba(255,255,255,0.92);border:none;border-radius:9px;color:#000;font-size:0.62rem;font-weight:700;cursor:pointer;white-space:nowrap">Upload timetable</button>
+    </div>`}
 
     <div class="slabel">Performance Snapshot</div>
     <div class="a-grid">
