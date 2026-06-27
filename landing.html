@@ -1,10 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- Set the JS flag before first paint so reveal elements hide without a flash -->
+  <script>document.documentElement.classList.add('js');</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CTA Mark Dashboard — Academic Performance Tracker</title>
-  <meta name="description" content="Track your CTA PGDA marks. Weighted scores, Sep planning, AI exam grading — free, private, no account.">
+  <title>Term Tracker — Your Academic Performance, Tracked</title>
+  <meta name="description" content="Term Tracker turns your syllabus into a live dashboard. Upload your learner guides, track every assessment, plan your exams, and get tips built around the topics you struggle with.">
+  <meta name="theme-color" content="#050505">
+
+  <!-- Social / Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Term Tracker — Your Academic Performance, Tracked">
+  <meta property="og:description" content="Upload your syllabus, track every assessment, plan your exams, and get insights built around the topics you struggle with. Your account follows you across devices.">
+  <meta property="og:image" content="https://picsum.photos/seed/termtracker/1200/630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Term Tracker">
+  <meta name="twitter:description" content="Upload your syllabus, track every assessment, and get insights built around the topics you struggle with.">
+
+  <!-- Inline SVG favicon (Term Tracker monogram on dark) -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23050505'/%3E%3Crect x='2.5' y='2.5' width='27' height='27' rx='5.5' fill='none' stroke='rgba(255,255,255,0.22)'/%3E%3Ctext x='16' y='21' font-family='monospace' font-size='11' font-weight='800' fill='%23fff' text-anchor='middle'%3ETT%3C/text%3E%3C/svg%3E">
+
   <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,200;14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800;14..32,900&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
   <style>
     /* ─── TOKENS ─── */
@@ -20,7 +36,9 @@
       --bright: rgba(255,255,255,0.26);
       --mono:  'JetBrains Mono', monospace;
       --sans:  'Inter', -apple-system, system-ui, sans-serif;
-      --ease:   cubic-bezier(0.16,1,0.3,1);
+      /* Motion — strong curves; the browser defaults are too weak to feel intentional */
+      --ease:      cubic-bezier(0.16,1,0.3,1);   /* ease-out-expo: entrances, reveals */
+      --ease-soft: cubic-bezier(0.23,1,0.32,1);  /* gentler ease-out: hovers */
       --r:      18px;
     }
 
@@ -127,6 +145,7 @@
       transition:transform 0.22s var(--ease), box-shadow 0.22s, background 0.2s;
     }
     .btn-p:hover { transform:translateY(-2px); box-shadow:0 10px 36px rgba(255,255,255,0.22); background:#f0f0f0; }
+    .btn-p:active { transform:translateY(0) scale(0.975); box-shadow:0 4px 18px rgba(255,255,255,0.16); transition-duration:0.1s; }
     .btn-s {
       display:inline-flex; align-items:center; gap:0.45rem;
       padding:0.78rem 1.9rem; border-radius:12px; cursor:pointer;
@@ -134,16 +153,20 @@
       border:1px solid rgba(255,255,255,0.18); border-top-color:rgba(255,255,255,0.28);
       color:var(--muted); font-size:0.88rem; font-weight:600;
       box-shadow:inset 0 1px 0 rgba(255,255,255,0.14);
-      transition:all 0.22s var(--ease);
+      transition:background 0.22s var(--ease-soft), color 0.22s var(--ease-soft), transform 0.16s var(--ease-soft);
     }
     .btn-s:hover { background:rgba(255,255,255,0.10); color:var(--text); }
+    .btn-s:active { transform:scale(0.975); transition-duration:0.1s; }
 
     /* ─── LAYOUT ─── */
     .wrap { position:relative; z-index:2; max-width:1180px; margin:0 auto; padding:0 2rem; }
 
     /* ─── REVEAL ─── */
-    .rv { opacity:0; transform:translateY(26px); transition:opacity 0.7s var(--ease), transform 0.7s var(--ease); }
-    .rv.in { opacity:1; transform:translateY(0); }
+    /* Hidden state is scoped under .js so the page stays fully visible if JS
+       never runs (headless render, blocked script) — reveal enhances, never gates. */
+    .rv { transition:opacity 0.7s var(--ease), transform 0.7s var(--ease); }
+    .js .rv { opacity:0; transform:translateY(26px); }
+    .js .rv.in { opacity:1; transform:translateY(0); }
 
     /* ─── HERO ─── */
     .hero {
@@ -153,21 +176,126 @@
       padding:7rem 2rem 5rem; overflow:hidden; z-index:2;
     }
 
-    /* Globe canvas */
+    /* ─── CUBE PLANET ─── */
     .globe-wrap {
       position:absolute; top:50%; left:50%;
       transform:translate(-50%,-50%);
       z-index:0; pointer-events:none;
-      opacity:0; transition:opacity 2s ease;
+      width:580px; height:580px;
+      display:flex; align-items:center; justify-content:center;
+      opacity:0; transition:opacity 1.6s ease;
+      perspective:1200px;
     }
     .globe-wrap.visible { opacity:1; }
-    #globe-canvas { display:block; }
     .globe-glow {
       position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
       width:540px; height:540px; border-radius:50%;
-      background:radial-gradient(circle, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.012) 40%, transparent 70%);
+      background:radial-gradient(circle, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.013) 40%, transparent 70%);
       pointer-events:none;
     }
+    /* A cube is six absolutely-positioned faces in 3D space */
+    .cube-scene { position:relative; width:200px; height:200px; transform-style:preserve-3d; }
+    .cube {
+      position:absolute; inset:0;
+      transform-style:preserve-3d;
+      will-change:transform;
+    }
+    /* Main planet: continuous spin on a tilted axis (planet-like) */
+    .cube--planet { animation:cubeSpin 26s linear infinite; }
+    @keyframes cubeSpin {
+      from { transform:rotateX(-24deg) rotateY(0deg) rotateZ(6deg); }
+      to   { transform:rotateX(-24deg) rotateY(360deg) rotateZ(6deg); }
+    }
+    .face {
+      position:absolute; top:50%; left:50%; width:200px; height:200px;
+      margin:-100px 0 0 -100px;
+      border:1px solid rgba(255,255,255,0.16);
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.012) 60%, transparent 100%);
+      box-shadow:inset 0 0 38px rgba(255,255,255,0.05), inset 0 1px 0 rgba(255,255,255,0.18);
+      backface-visibility:visible;
+    }
+    /* Inner grid lines on each face for a wireframe-planet read */
+    .face::before {
+      content:''; position:absolute; inset:0; pointer-events:none;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+      background-size:40px 40px;
+    }
+    .face::after {
+      content:''; position:absolute; inset:14px; pointer-events:none;
+      border:1px solid rgba(255,255,255,0.06); border-radius:4px;
+    }
+    .f-front  { transform:translateZ(100px); }
+    .f-back   { transform:rotateY(180deg) translateZ(100px); }
+    .f-right  { transform:rotateY(90deg)  translateZ(100px); }
+    .f-left   { transform:rotateY(-90deg) translateZ(100px); }
+    .f-top    { transform:rotateX(90deg)  translateZ(100px); }
+    .f-bottom { transform:rotateX(-90deg) translateZ(100px); }
+
+    /* Blurry background cubes — fill the space, sit far behind */
+    .bg-cubes { position:absolute; inset:0; z-index:-1; pointer-events:none; }
+    .bg-cube {
+      position:absolute; transform-style:preserve-3d;
+      opacity:0.5; filter:blur(7px);
+    }
+    .bg-cube .cube { animation:cubeSpin 38s linear infinite; }
+    .bg-cube .face {
+      border-color:rgba(255,255,255,0.10);
+      background:linear-gradient(135deg, rgba(255,255,255,0.04), transparent 70%);
+      box-shadow:none;
+    }
+    .bg-cube .face::before, .bg-cube .face::after { display:none; }
+    .bg-cube-1 { top:4%;   left:2%;   width:120px; height:120px; filter:blur(9px);  opacity:0.4;  animation:cubeFloat 18s ease-in-out infinite; }
+    .bg-cube-2 { top:8%;   right:0%;  width:90px;  height:90px;  filter:blur(6px);  opacity:0.5;  animation:cubeFloat 22s ease-in-out infinite -6s; }
+    .bg-cube-3 { bottom:6%; left:8%;  width:80px;  height:80px;  filter:blur(5px);  opacity:0.45; animation:cubeFloat 26s ease-in-out infinite -12s; }
+    .bg-cube-4 { bottom:2%; right:6%; width:150px; height:150px; filter:blur(12px); opacity:0.32; animation:cubeFloat 30s ease-in-out infinite -3s; }
+    .bg-cube-5 { top:42%;  left:-6%;  width:70px;  height:70px;  filter:blur(8px);  opacity:0.35; animation:cubeFloat 24s ease-in-out infinite -9s; }
+    /* scale the inner faces of background cubes to their wrapper size */
+    .bg-cube-1 .cube-scene,.bg-cube-2 .cube-scene,.bg-cube-3 .cube-scene,.bg-cube-4 .cube-scene,.bg-cube-5 .cube-scene { width:100%; height:100%; }
+    .bg-cube .face { width:100%; height:100%; margin:0; top:0; left:0; }
+    .bg-cube .f-front{transform:translateZ(50px)} .bg-cube .f-back{transform:rotateY(180deg) translateZ(50px)}
+    .bg-cube .f-right{transform:rotateY(90deg) translateZ(50px)} .bg-cube .f-left{transform:rotateY(-90deg) translateZ(50px)}
+    .bg-cube .f-top{transform:rotateX(90deg) translateZ(50px)} .bg-cube .f-bottom{transform:rotateX(-90deg) translateZ(50px)}
+    @keyframes cubeFloat {
+      0%,100% { transform:translate3d(0,0,0); }
+      50%     { transform:translate3d(18px,-22px,0); }
+    }
+    @media (prefers-reduced-motion:reduce) {
+      .cube--planet { animation:none; transform:rotateX(-24deg) rotateY(38deg) rotateZ(6deg); }
+      .bg-cube, .bg-cube .cube { animation:none; }
+    }
+
+    /* ─── INTERACTIVE BUBBLES ─── */
+    .bubbles { position:absolute; inset:0; z-index:3; pointer-events:none; overflow:hidden; }
+    .bubble {
+      position:absolute; pointer-events:auto; cursor:pointer;
+      border-radius:50%;
+      display:flex; align-items:center; justify-content:center; text-align:center;
+      background:radial-gradient(circle at 32% 28%, rgba(255,255,255,0.16), rgba(255,255,255,0.03) 60%, rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.16); border-top-color:rgba(255,255,255,0.34);
+      box-shadow:inset 0 2px 8px rgba(255,255,255,0.18), 0 10px 34px rgba(0,0,0,0.5);
+      backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+      color:rgba(255,255,255,0.82); font-weight:700; letter-spacing:-0.01em;
+      animation:bubbleFloat var(--dur,9s) ease-in-out infinite;
+      transition:transform 0.3s var(--ease-soft), box-shadow 0.3s, border-color 0.3s, background 0.3s;
+    }
+    .bubble span { padding:0 0.4rem; line-height:1.15; }
+    .bubble:hover {
+      transform:translateY(-6px) scale(1.06);
+      border-color:rgba(255,255,255,0.5);
+      box-shadow:inset 0 2px 10px rgba(255,255,255,0.28), 0 18px 48px rgba(0,0,0,0.6);
+      color:#fff;
+    }
+    .bubble:active { transform:translateY(-2px) scale(0.97); transition-duration:0.1s; }
+    @keyframes bubbleFloat {
+      0%,100% { transform:translateY(0); }
+      50%     { transform:translateY(-16px); }
+    }
+    @media (prefers-reduced-motion:reduce) { .bubble { animation:none; } }
+    /* Bubbles are a desktop delight; below 1000px they'd crowd the hero copy/CTAs */
+    @media (max-width:1000px) { .bubbles { display:none; } }
 
     /* Hero content */
     .hero-inner { position:relative; z-index:2; max-width:900px; }
@@ -189,15 +317,15 @@
     @keyframes tagP { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.6)} }
 
     .hero-h1-thin {
-      font-size:clamp(3rem,8vw,6.5rem); font-weight:200;
-      color:rgba(255,255,255,0.60); letter-spacing:-0.04em;
+      font-size:clamp(2.7rem,7vw,4.2rem); font-weight:200;
+      color:rgba(255,255,255,0.60); letter-spacing:-0.035em;
       line-height:1; display:block;
       opacity:0; transform:translateY(20px);
       animation:fadeUp 0.9s 0.4s var(--ease) forwards;
     }
     .hero-h1-bold {
-      font-size:clamp(3.5rem,9.5vw,8rem); font-weight:900;
-      color:#ffffff; letter-spacing:-0.048em;
+      font-size:clamp(3.2rem,8.5vw,5.9rem); font-weight:900;
+      color:#ffffff; letter-spacing:-0.04em; text-wrap:balance;
       line-height:0.94; display:block; margin-top:0.04em;
       opacity:0; transform:translateY(20px);
       animation:fadeUp 0.9s 0.7s var(--ease) forwards;
@@ -268,9 +396,8 @@
 
     /* ─── SECTIONS ─── */
     .sec { padding:7rem 0; }
-    .stag { font-size:0.58rem; font-weight:800; text-transform:uppercase; letter-spacing:0.18em; color:rgba(255,255,255,0.38); display:block; margin-bottom:0.6rem; }
-    .sh2 { font-size:clamp(1.9rem,3.8vw,2.9rem); font-weight:900; letter-spacing:-0.042em; line-height:1.05; margin-bottom:0.9rem; }
-    .ssub { font-size:0.94rem; color:var(--muted); line-height:1.75; max-width:500px; }
+    .sh2 { font-size:clamp(1.9rem,3.8vw,2.9rem); font-weight:900; letter-spacing:-0.04em; line-height:1.05; margin-bottom:0.9rem; text-wrap:balance; }
+    .ssub { font-size:0.94rem; color:var(--muted); line-height:1.75; max-width:52ch; text-wrap:pretty; }
     .shdr { margin-bottom:3.5rem; }
 
     /* ─── BENTO GRID ─── */
@@ -393,6 +520,75 @@
     .wbar-track { flex:1; height:4px; border-radius:3px; background:rgba(255,255,255,0.06); overflow:hidden; }
     .wbar-fill { height:100%; border-radius:3px; background:rgba(255,255,255,0.5); }
     .wbar-val { font-family:var(--mono); font-size:0.58rem; font-weight:800; min-width:26px; text-align:right; color:var(--muted); }
+
+    /* ─── AUTH OVERLAY ─── */
+    .auth-ov {
+      position:fixed; inset:0; z-index:1000;
+      display:flex; align-items:center; justify-content:center; padding:1.5rem;
+      background:rgba(2,2,2,0.72);
+      backdrop-filter:blur(14px) saturate(140%); -webkit-backdrop-filter:blur(14px) saturate(140%);
+      opacity:0; visibility:hidden;
+      transition:opacity 0.28s var(--ease), visibility 0.28s;
+    }
+    .auth-ov.open { opacity:1; visibility:visible; }
+    .auth-card {
+      width:min(420px,100%); padding:2rem 1.9rem 1.8rem; position:relative;
+      transform:scale(0.96) translateY(8px);
+      transition:transform 0.34s var(--ease);
+    }
+    .auth-ov.open .auth-card { transform:scale(1) translateY(0); }
+    .auth-card .auth-x {
+      position:absolute; top:0.9rem; right:0.9rem; left:auto; width:30px; height:30px; border-radius:8px;
+      display:flex; align-items:center; justify-content:center; cursor:pointer;
+      background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.10);
+      color:var(--muted); font-size:0.9rem; transition:background 0.2s, color 0.2s, transform 0.12s;
+    }
+    .auth-x:hover { background:rgba(255,255,255,0.1); color:#fff; }
+    .auth-x:active { transform:scale(0.92); }
+    .auth-badge {
+      width:46px; height:46px; border-radius:12px; margin-bottom:1.1rem;
+      background:rgba(255,255,255,0.09); border:1px solid rgba(255,255,255,0.2); border-top-color:rgba(255,255,255,0.36);
+      display:flex; align-items:center; justify-content:center;
+      font-family:var(--mono); font-weight:900; font-size:0.62rem; color:#fff;
+      box-shadow:inset 0 1.5px 0 rgba(255,255,255,0.3);
+    }
+    .auth-h { font-size:1.3rem; font-weight:900; letter-spacing:-0.03em; margin-bottom:0.3rem; }
+    .auth-sub { font-size:0.74rem; color:var(--muted); margin-bottom:1.3rem; line-height:1.6; }
+    .auth-tabs { display:flex; gap:0.3rem; padding:0.25rem; margin-bottom:1.3rem; border-radius:11px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); }
+    .auth-tab {
+      flex:1; padding:0.5rem; border-radius:8px; cursor:pointer; text-align:center;
+      font-size:0.74rem; font-weight:700; color:var(--muted); background:transparent; border:none; font-family:var(--sans);
+      transition:background 0.22s var(--ease-soft), color 0.22s;
+    }
+    .auth-tab.active { background:rgba(255,255,255,0.1); color:#fff; box-shadow:inset 0 1px 0 rgba(255,255,255,0.16); }
+    .auth-field { margin-bottom:0.85rem; }
+    .auth-field label { display:block; font-size:0.56rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--faint); margin-bottom:0.34rem; }
+    .auth-field input {
+      width:100%; padding:0.66rem 0.85rem; border-radius:10px;
+      background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.13); border-top-color:rgba(255,255,255,0.22);
+      color:#fff; font-family:var(--sans); font-size:0.82rem; outline:none;
+      transition:border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    }
+    .auth-field input::placeholder { color:rgba(255,255,255,0.3); }
+    .auth-field input:focus { background:rgba(255,255,255,0.09); border-color:rgba(255,255,255,0.4); box-shadow:0 0 0 3px rgba(255,255,255,0.08); }
+    .auth-row { display:grid; grid-template-columns:1fr 1fr; gap:0.6rem; }
+    .auth-btn {
+      width:100%; margin-top:0.5rem; padding:0.78rem; border-radius:11px; cursor:pointer;
+      background:#fff; color:#000; border:1px solid rgba(255,255,255,0.9);
+      font-family:var(--sans); font-size:0.84rem; font-weight:700;
+      box-shadow:0 6px 24px rgba(255,255,255,0.14), inset 0 1.5px 0 rgba(255,255,255,1);
+      transition:transform 0.18s var(--ease), box-shadow 0.2s, opacity 0.2s;
+    }
+    .auth-btn:hover { transform:translateY(-2px); box-shadow:0 12px 34px rgba(255,255,255,0.2); }
+    .auth-btn:active { transform:translateY(0) scale(0.98); transition-duration:0.1s; }
+    .auth-btn:disabled { opacity:0.55; cursor:wait; transform:none; }
+    .auth-msg { font-size:0.7rem; line-height:1.55; margin-top:0.85rem; min-height:1em; }
+    .auth-msg.err { color:#fda4af; }
+    .auth-msg.ok  { color:#86efac; }
+    .auth-mode-tip { font-size:0.58rem; color:var(--faint); margin-top:0.9rem; line-height:1.6; text-align:center; }
+    .auth-pane { display:none; }
+    .auth-pane.active { display:block; animation:authFade 0.3s var(--ease); }
+    @keyframes authFade { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
   </style>
 </head>
 <body>
@@ -404,11 +600,11 @@
 
 <!-- NAV -->
 <nav id="nav" role="navigation" aria-label="Main navigation">
-  <a href="#" class="nav-logo" aria-label="CTA Mark Dashboard — home">
-    <div class="nav-badge" aria-hidden="true">CTA</div>
+  <a href="#" class="nav-logo" aria-label="Term Tracker — home">
+    <div class="nav-badge" aria-hidden="true">TT</div>
     <div>
-      <div class="nav-name">Mark Dashboard</div>
-      <div class="nav-sub">PGDA 2026</div>
+      <div class="nav-name">Term Tracker</div>
+      <div class="nav-sub">ACADEMIC TRACKER</div>
     </div>
   </a>
   <ul class="nav-links" role="list">
@@ -417,44 +613,71 @@
     <li><a href="#modules">Modules</a></li>
     <li><a href="#privacy">Privacy</a></li>
   </ul>
-  <a href="index.html" class="btn-p" style="padding:0.48rem 1.2rem;font-size:0.74rem;border-radius:9px">Open Dashboard →</a>
+  <button type="button" class="btn-p" data-auth="signin" style="padding:0.48rem 1.2rem;font-size:0.74rem;border-radius:9px">Sign in →</button>
 </nav>
 
 <!-- ─── HERO ─── -->
 <section class="hero" aria-label="Hero">
 
-  <!-- Animated globe behind everything -->
-  <div class="globe-wrap" id="globe-wrap">
+  <!-- Spinning cube planet behind everything -->
+  <div class="globe-wrap" id="globe-wrap" aria-hidden="true">
     <div class="globe-glow"></div>
-    <canvas id="globe-canvas" width="580" height="580" aria-hidden="true"></canvas>
+    <!-- Blurry background cubes filling the space -->
+    <div class="bg-cubes">
+      <div class="bg-cube bg-cube-1"><div class="cube-scene"><div class="cube"><div class="face f-front"></div><div class="face f-back"></div><div class="face f-right"></div><div class="face f-left"></div><div class="face f-top"></div><div class="face f-bottom"></div></div></div></div>
+      <div class="bg-cube bg-cube-2"><div class="cube-scene"><div class="cube"><div class="face f-front"></div><div class="face f-back"></div><div class="face f-right"></div><div class="face f-left"></div><div class="face f-top"></div><div class="face f-bottom"></div></div></div></div>
+      <div class="bg-cube bg-cube-3"><div class="cube-scene"><div class="cube"><div class="face f-front"></div><div class="face f-back"></div><div class="face f-right"></div><div class="face f-left"></div><div class="face f-top"></div><div class="face f-bottom"></div></div></div></div>
+      <div class="bg-cube bg-cube-4"><div class="cube-scene"><div class="cube"><div class="face f-front"></div><div class="face f-back"></div><div class="face f-right"></div><div class="face f-left"></div><div class="face f-top"></div><div class="face f-bottom"></div></div></div></div>
+      <div class="bg-cube bg-cube-5"><div class="cube-scene"><div class="cube"><div class="face f-front"></div><div class="face f-back"></div><div class="face f-right"></div><div class="face f-left"></div><div class="face f-top"></div><div class="face f-bottom"></div></div></div></div>
+    </div>
+    <!-- Main planet cube -->
+    <div class="cube-scene">
+      <div class="cube cube--planet">
+        <div class="face f-front"></div>
+        <div class="face f-back"></div>
+        <div class="face f-right"></div>
+        <div class="face f-left"></div>
+        <div class="face f-top"></div>
+        <div class="face f-bottom"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Interactive bubbles — click to sign up -->
+  <div class="bubbles" id="bubbles" aria-hidden="true">
+    <button type="button" class="bubble" data-auth="signup" style="top:16%;left:4%;width:86px;height:86px;font-size:0.62rem;--dur:8s"><span>Track marks</span></button>
+    <button type="button" class="bubble" data-auth="signup" style="top:44%;left:1%;width:100px;height:100px;font-size:0.66rem;--dur:11s"><span>Plan exams</span></button>
+    <button type="button" class="bubble" data-auth="signup" style="top:13%;right:4%;width:94px;height:94px;font-size:0.64rem;--dur:9.5s"><span>Beat weak spots</span></button>
+    <button type="button" class="bubble" data-auth="signup" style="top:42%;right:2%;width:82px;height:82px;font-size:0.6rem;--dur:7.5s"><span>Get insights</span></button>
+    <button type="button" class="bubble" data-auth="signup" style="bottom:11%;left:5%;width:72px;height:72px;font-size:0.56rem;--dur:10.5s"><span>Flashcards</span></button>
   </div>
 
   <div class="hero-inner">
     <div class="hero-tag" aria-hidden="true">
       <span class="htag-dot"></span>
-      CTA Performance Tracker
+      Your syllabus, made smart
       <span class="htag-dot"></span>
     </div>
 
     <h1>
-      <span class="hero-h1-thin">Track</span>
-      <span class="hero-h1-bold">Your Results.</span>
+      <span class="hero-h1-thin">Welcome to</span>
+      <span class="hero-h1-bold">Term Tracker.</span>
     </h1>
 
     <!-- Cycling value props -->
     <div class="hero-cycle-wrap" aria-live="polite">
       <span class="cycle-prefix">Built to help you </span>
-      <span class="cycle-text" id="cycle-el">monitor your marks</span>
+      <span class="cycle-text" id="cycle-el">track your marks</span>
     </div>
 
     <p class="hero-sub">
-      The academic performance dashboard built for CTA PGDA students.
-      Track marks across all four modules, plan your September targets,
-      and gain the insights you need to pass.
+      Upload your learner guides, and Term Tracker builds a live dashboard around
+      <em>your</em> assessments, exam dates and weightings — then surfaces tips and
+      flashcards for the topics you find hardest.
     </p>
 
     <div class="hero-acts">
-      <a href="index.html" class="btn-p">Start Tracking — Free →</a>
+      <button type="button" class="btn-p" data-auth="signup">Get started — it's free →</button>
       <a href="#how" class="btn-s">
         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
         See how it works
@@ -463,20 +686,20 @@
 
     <div class="hstats" role="list" aria-label="Key statistics">
       <div class="hstat" role="listitem">
-        <span class="hstat-v" data-count="4">4</span>
-        <span class="hstat-l">CTA Modules</span>
+        <span class="hstat-v">Any</span>
+        <span class="hstat-l">University</span>
       </div>
       <div class="hstat" role="listitem">
-        <span class="hstat-v">4</span>
-        <span class="hstat-l">Tests / Module</span>
+        <span class="hstat-v">PDF</span>
+        <span class="hstat-l">Syllabus upload</span>
       </div>
       <div class="hstat" role="listitem">
-        <span class="hstat-v">100%</span>
-        <span class="hstat-l">Private</span>
+        <span class="hstat-v">Cloud</span>
+        <span class="hstat-l">Saved &amp; synced</span>
       </div>
       <div class="hstat" role="listitem">
         <span class="hstat-v">Free</span>
-        <span class="hstat-l">No account</span>
+        <span class="hstat-l">To start</span>
       </div>
     </div>
   </div>
@@ -516,7 +739,6 @@
 <section class="sec" id="features" aria-label="Features">
   <div class="wrap">
     <div class="shdr rv">
-      <span class="stag">Features</span>
       <h2 class="sh2">Everything you need<br>to ace your CTA</h2>
       <p class="ssub">Built specifically for PGDA students. No generic study app — every feature maps directly to how your year mark is calculated.</p>
     </div>
@@ -627,7 +849,6 @@
 <section class="sec" id="how" aria-label="How it works">
   <div class="wrap">
     <div class="shdr rv" style="text-align:center;margin:0 auto 3.5rem;max-width:520px">
-      <span class="stag">How it works</span>
       <h2 class="sh2">Set up in under<br>two minutes</h2>
       <p class="ssub" style="margin:0 auto">No signup. No download. Three steps and your dashboard is live.</p>
     </div>
@@ -664,7 +885,6 @@
   <div class="wrap">
     <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:4.5rem;align-items:start">
       <div class="rv">
-        <span class="stag">The Modules</span>
         <h2 class="sh2">Four subjects.<br>One dashboard.</h2>
         <p class="ssub" style="margin-bottom:2rem">The four CTA integrated assessments — consistently weighted and tracked together so you always see the full picture.</p>
         <div class="glass" style="padding:1.3rem 1.5rem;border-radius:15px">
@@ -735,27 +955,26 @@
   <div class="wrap">
     <div class="priv-grid">
       <div class="rv">
-        <span class="stag">Privacy first</span>
-        <h2 class="sh2">Your marks.<br>Your device.<br>Nobody else.</h2>
-        <p class="ssub" style="margin-bottom:2.2rem">No account, no analytics, no cloud — because we never asked for access in the first place.</p>
-        <a href="index.html" class="btn-p">Open Dashboard — Free →</a>
+        <h2 class="sh2">Your account.<br>Synced safely.<br>Yours alone.</h2>
+        <p class="ssub" style="margin-bottom:2.2rem">Sign in once and your marks, uploads and progress follow you to any device — kept private to your account, never sold or shared.</p>
+        <button type="button" class="btn-p" data-auth="signup">Create your account →</button>
       </div>
       <div class="priv-items rv" style="transition-delay:0.1s">
         <div class="priv-item">
           <div class="priv-icon"><svg fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-          <div><div class="priv-h">Stored in localStorage</div><p class="priv-p">All data writes to your browser's localStorage API. It never leaves your device — clearing your browser data removes it.</p></div>
+          <div><div class="priv-h">Saved to your account</div><p class="priv-p">Your profile and progress sync to secure cloud storage, so switching laptop or phone never means re-entering your data.</p></div>
         </div>
         <div class="priv-item">
           <div class="priv-icon"><svg fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></div>
-          <div><div class="priv-h">Zero tracking</div><p class="priv-p">No analytics scripts. No user IDs. No cookies. We don't know you opened this page — and that's intentional.</p></div>
+          <div><div class="priv-h">No tracking, no ads</div><p class="priv-p">No analytics scripts, no advertising IDs, no selling your data. Your account exists to serve you — nothing else.</p></div>
         </div>
         <div class="priv-item">
           <div class="priv-icon"><svg fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-          <div><div class="priv-h">No account required</div><p class="priv-p">Open the app, complete the 3-step setup, and your dashboard is live. No email, no password, no verification.</p></div>
+          <div><div class="priv-h">No student number needed</div><p class="priv-p">Just your name, university and year of study. We never ask for a student number or any institutional credentials.</p></div>
         </div>
         <div class="priv-item">
           <div class="priv-icon"><svg fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><polyline points="22 2 11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div>
-          <div><div class="priv-h">AI Grader is optional</div><p class="priv-p">Uses the Anthropic API with your own key. Your exam answers go directly to Claude — not through any server of ours.</p></div>
+          <div><div class="priv-h">PDFs read on your device</div><p class="priv-p">Your learner guides are parsed right in your browser to pull out dates and weightings — the raw files stay with you.</p></div>
         </div>
       </div>
     </div>
@@ -767,14 +986,14 @@
   <div class="wrap">
     <div class="glass rv" style="padding:4.2rem 3rem;text-align:center;max-width:660px;margin:0 auto">
       <div class="shim"></div>
-      <div class="cta-badge" aria-hidden="true">CTA</div>
+      <div class="cta-badge" aria-hidden="true">TT</div>
       <h2 class="cta-h2">Ready to know<br>where you stand?</h2>
-      <p class="cta-sub">Set up your dashboard in 2 minutes. Know what you need, where you're at, and how to get there — before September arrives.</p>
+      <p class="cta-sub">Create your account, upload a learner guide, and your personalised dashboard is live in minutes — assessments, deadlines, tips and all.</p>
       <div style="display:flex;gap:0.9rem;justify-content:center;flex-wrap:wrap">
-        <a href="index.html" class="btn-p">Start Tracking Free →</a>
+        <button type="button" class="btn-p" data-auth="signup">Get started free →</button>
         <a href="#features" class="btn-s">Explore features</a>
       </div>
-      <p class="cta-note">No account &nbsp;·&nbsp; No cost &nbsp;·&nbsp; Works offline &nbsp;·&nbsp; Data stays on your device</p>
+      <p class="cta-note">Free to start &nbsp;·&nbsp; No student number &nbsp;·&nbsp; Saved to your account &nbsp;·&nbsp; Private to you</p>
     </div>
   </div>
 </section>
@@ -782,141 +1001,187 @@
 <!-- FOOTER -->
 <footer>
   <div class="foot-inner">
-    <div class="foot-copy">© 2026 CTA Mark Dashboard — PGDA Academic Tracker.</div>
+    <div class="foot-copy">© 2026 Term Tracker — Your academic performance, tracked.</div>
     <div class="foot-links">
       <a href="#features">Features</a>
       <a href="#how">How it works</a>
-      <a href="index.html">Open App →</a>
+      <a href="#privacy">Privacy</a>
+      <button type="button" class="foot-signin" data-auth="signin" style="background:none;border:none;color:inherit;font:inherit;cursor:pointer;padding:0">Sign in →</button>
     </div>
   </div>
 </footer>
 
+<!-- ─── AUTH OVERLAY ─── -->
+<div class="auth-ov" id="auth-ov" role="dialog" aria-modal="true" aria-labelledby="auth-h">
+  <div class="glass auth-card">
+    <button type="button" class="auth-x" aria-label="Close">✕</button>
+    <div class="auth-badge" aria-hidden="true">TT</div>
+    <h2 class="auth-h" id="auth-h">Term Tracker</h2>
+    <p class="auth-sub">Create your account or sign in — your marks, uploads and progress are saved to you.</p>
+
+    <div class="auth-tabs" role="tablist">
+      <button type="button" class="auth-tab active" data-mode="signin" role="tab">Sign in</button>
+      <button type="button" class="auth-tab" data-mode="signup" role="tab">Create account</button>
+    </div>
+
+    <!-- Sign in -->
+    <div class="auth-pane active" id="pane-signin">
+      <form id="form-signin" novalidate>
+        <div class="auth-field">
+          <label for="si-email">Email</label>
+          <input id="si-email" name="email" type="email" autocomplete="email" placeholder="you@university.ac.za">
+        </div>
+        <div class="auth-field">
+          <label for="si-pass">Password</label>
+          <input id="si-pass" name="password" type="password" autocomplete="current-password" placeholder="••••••••">
+        </div>
+        <button type="submit" class="auth-btn">Sign in</button>
+      </form>
+    </div>
+
+    <!-- Sign up -->
+    <div class="auth-pane" id="pane-signup">
+      <form id="form-signup" novalidate>
+        <div class="auth-row">
+          <div class="auth-field">
+            <label for="su-first">Name</label>
+            <input id="su-first" name="firstName" type="text" autocomplete="given-name" placeholder="Sechaba">
+          </div>
+          <div class="auth-field">
+            <label for="su-last">Surname</label>
+            <input id="su-last" name="lastName" type="text" autocomplete="family-name" placeholder="Mashinini">
+          </div>
+        </div>
+        <div class="auth-field">
+          <label for="su-email">Email</label>
+          <input id="su-email" name="email" type="email" autocomplete="email" placeholder="you@university.ac.za">
+        </div>
+        <div class="auth-field">
+          <label for="su-pass">Password</label>
+          <input id="su-pass" name="password" type="password" autocomplete="new-password" placeholder="At least 6 characters">
+        </div>
+        <button type="submit" class="auth-btn">Create account</button>
+      </form>
+    </div>
+
+    <div class="auth-msg" id="auth-msg" role="status" aria-live="polite"></div>
+    <p class="auth-mode-tip">You'll add your university, year of study and modules in the next step.</p>
+  </div>
+</div>
+
+<!-- Supabase SDK (used only when TT_CONFIG is filled in; harmless otherwise) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="tt-core.js"></script>
+
 <script>
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 /* ── NAV SCROLL ── */
 const nav = document.getElementById('nav');
 window.addEventListener('scroll', () => { nav.classList.toggle('scrolled', window.scrollY > 50); }, { passive:true });
 
-/* ── WIREFRAME GLOBE ── */
+/* ── REVEAL THE CUBE PLANET ── */
+setTimeout(() => {
+  const gw = document.getElementById('globe-wrap');
+  if (gw) gw.classList.add('visible');
+}, 200);
+
+/* ── AUTH OVERLAY (Supabase-ready, localStorage fallback) ── */
 (function() {
-  const canvas = document.getElementById('globe-canvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-  const CX = W / 2, CY = H / 2;
-  const RADIUS = 1;
-  const LAT_N = 12, LON_N = 18, SEG = 80;
-  const ROT_X = 0.22; // fixed tilt
-  let rotY = 0, frameAlpha = 0;
+  const ov   = document.getElementById('auth-ov');
+  if (!ov) return;
+  const card = ov.querySelector('.auth-card');
+  const msg  = document.getElementById('auth-msg');
+  const tabs = ov.querySelectorAll('.auth-tab');
+  const panes = { signin: document.getElementById('pane-signin'), signup: document.getElementById('pane-signup') };
+  let lastFocus = null;
 
-  // Build sphere lines
-  const lines = [];
+  function setMode(mode) {
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+    Object.entries(panes).forEach(([k, el]) => el.classList.toggle('active', k === mode));
+    if (msg) { msg.textContent = ''; msg.className = 'auth-msg'; }
+    const first = panes[mode].querySelector('input');
+    if (first) setTimeout(() => first.focus(), 60);
+  }
+  function open(mode) {
+    lastFocus = document.activeElement;
+    ov.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    setMode(mode || 'signin');
+  }
+  function close() {
+    ov.classList.remove('open');
+    document.body.style.overflow = '';
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+  window.TTopenAuth = open;
 
-  // Latitude rings
-  for (let i = 1; i < LAT_N; i++) {
-    const phi = Math.PI * i / LAT_N;
-    const y = RADIUS * Math.cos(phi);
-    const r = RADIUS * Math.sin(phi);
-    const pts = [];
-    for (let j = 0; j <= SEG; j++) {
-      const theta = 2 * Math.PI * j / SEG;
-      pts.push([r * Math.cos(theta), y, r * Math.sin(theta)]);
+  // Triggers
+  document.querySelectorAll('[data-auth]').forEach(btn => {
+    btn.addEventListener('click', e => { e.preventDefault(); open(btn.dataset.auth); });
+  });
+  ov.querySelector('.auth-x').addEventListener('click', close);
+  ov.addEventListener('click', e => { if (e.target === ov) close(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && ov.classList.contains('open')) close(); });
+  tabs.forEach(t => t.addEventListener('click', () => setMode(t.dataset.mode)));
+
+  function showMsg(text, kind) { if (!msg) return; msg.textContent = text; msg.className = 'auth-msg ' + (kind || ''); }
+
+  /* Sign up */
+  document.getElementById('form-signup').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    const data = {
+      firstName: f.firstName.value.trim(),
+      lastName:  f.lastName.value.trim(),
+      email:     f.email.value.trim(),
+      password:  f.password.value,
+    };
+    if (!data.firstName || !data.lastName) return showMsg('Please enter your name and surname.', 'err');
+    if (!/^\S+@\S+\.\S+$/.test(data.email)) return showMsg('Please enter a valid email address.', 'err');
+    if (data.password.length < 6) return showMsg('Password must be at least 6 characters.', 'err');
+    const btn = f.querySelector('.auth-btn'); btn.disabled = true; showMsg('Creating your account…', '');
+    try {
+      await TTAuth.signUp(data);
+      showMsg('Account created! Taking you to setup…', 'ok');
+      setTimeout(() => { location.href = 'index.html'; }, 700);
+    } catch (err) {
+      btn.disabled = false; showMsg(err.message || 'Could not create account.', 'err');
     }
-    lines.push(pts);
-  }
+  });
 
-  // Longitude arcs
-  for (let i = 0; i < LON_N; i++) {
-    const theta = 2 * Math.PI * i / LON_N;
-    const pts = [];
-    for (let j = 0; j <= SEG; j++) {
-      const phi = Math.PI * j / SEG;
-      const r = RADIUS * Math.sin(phi);
-      pts.push([r * Math.cos(theta), RADIUS * Math.cos(phi), r * Math.sin(theta)]);
+  /* Sign in */
+  document.getElementById('form-signin').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    const email = f.email.value.trim(), password = f.password.value;
+    if (!/^\S+@\S+\.\S+$/.test(email)) return showMsg('Please enter a valid email address.', 'err');
+    if (!password) return showMsg('Please enter your password.', 'err');
+    const btn = f.querySelector('.auth-btn'); btn.disabled = true; showMsg('Signing you in…', '');
+    try {
+      await TTAuth.signIn(email, password);
+      showMsg('Welcome back! Loading your dashboard…', 'ok');
+      setTimeout(() => { location.href = 'index.html'; }, 600);
+    } catch (err) {
+      btn.disabled = false; showMsg(err.message || 'Could not sign in.', 'err');
     }
-    lines.push(pts);
-  }
+  });
 
-  function transform(p) {
-    let [x, y, z] = p;
-    // Y rotation (spin)
-    const cy = Math.cos(rotY), sy = Math.sin(rotY);
-    const x1 = x * cy - z * sy;
-    const z1 = x * sy + z * cy;
-    // X rotation (tilt)
-    const cx_ = Math.cos(ROT_X), sx = Math.sin(ROT_X);
-    const y2 = y * cx_ - z1 * sx;
-    const z2 = y * sx  + z1 * cx_;
-    return [x1, y2, z2];
+  // If already signed in, nudge toward the dashboard
+  if (TTAuth.currentUser()) {
+    const nav = document.querySelector('nav [data-auth="signin"]');
+    if (nav) { nav.textContent = 'Open dashboard →'; nav.dataset.auth = ''; nav.addEventListener('click', () => location.href = 'index.html'); }
   }
-
-  function project(p) {
-    const [x, y, z] = p;
-    const D = 3.2; // perspective distance
-    const scale = (W * 0.415) * D / (D + z + 1.8);
-    return { sx: x * scale + CX, sy: -y * scale + CY, z };
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, W, H);
-    if (frameAlpha >= 1) {
-      lines.forEach(pts => {
-        const transformed = pts.map(p => {
-          const t = transform(p);
-          return Object.assign(project(t), { z: t[2] });
-        });
-        for (let i = 0; i < transformed.length - 1; i++) {
-          const a = transformed[i], b = transformed[i+1];
-          const z = (a.z + b.z) / 2;
-          const alpha = Math.max(0, Math.min(0.52, (z + RADIUS + 0.5) / (2 * RADIUS + 0.5) * 0.52));
-          ctx.beginPath();
-          ctx.moveTo(a.sx, a.sy);
-          ctx.lineTo(b.sx, b.sy);
-          ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
-          ctx.lineWidth = 0.75;
-          ctx.stroke();
-        }
-      });
-    } else {
-      // Draw with fade-in alpha
-      frameAlpha = Math.min(1, frameAlpha + 0.008);
-      lines.forEach(pts => {
-        const transformed = pts.map(p => {
-          const t = transform(p);
-          return Object.assign(project(t), { z: t[2] });
-        });
-        for (let i = 0; i < transformed.length - 1; i++) {
-          const a = transformed[i], b = transformed[i+1];
-          const z = (a.z + b.z) / 2;
-          const depth = Math.max(0, Math.min(0.52, (z + RADIUS + 0.5) / (2 * RADIUS + 0.5) * 0.52));
-          const alpha = depth * frameAlpha;
-          ctx.beginPath();
-          ctx.moveTo(a.sx, a.sy);
-          ctx.lineTo(b.sx, b.sy);
-          ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
-          ctx.lineWidth = 0.75;
-          ctx.stroke();
-        }
-      });
-    }
-    rotY += 0.0038;
-    requestAnimationFrame(draw);
-  }
-
-  // Show the wrapper and start drawing after a short delay
-  setTimeout(() => {
-    document.getElementById('globe-wrap').classList.add('visible');
-    draw();
-  }, 300);
 })();
 
 /* ── CYCLING TEXT ── */
 (function() {
   const phrases = [
-    'monitor your marks',
-    'plan your September',
-    'identify weak spots',
-    'gain key insights',
-    'adjust your schedule',
+    'track your marks',
+    'plan every exam',
+    'beat your weak spots',
+    'get smart insights',
+    'study with flashcards',
   ];
   let idx = 0;
   const el = document.getElementById('cycle-el');
@@ -933,15 +1198,20 @@ window.addEventListener('scroll', () => { nav.classList.toggle('scrolled', windo
     }, 360);
   }
 
-  setInterval(cycle, 2800);
+  if (!reduceMotion) setInterval(cycle, 2800);
 })();
 
 /* ── SCROLL REVEAL ── */
 const rvEls = document.querySelectorAll('.rv');
-const io = new IntersectionObserver(entries => {
-  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
-}, { threshold:0.07, rootMargin:'0px 0px -24px 0px' });
-rvEls.forEach(el => io.observe(el));
+if (!('IntersectionObserver' in window) || reduceMotion) {
+  /* No observer support, or motion is unwelcome — show everything immediately. */
+  rvEls.forEach(el => el.classList.add('in'));
+} else {
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold:0.07, rootMargin:'0px 0px -24px 0px' });
+  rvEls.forEach(el => io.observe(el));
+}
 </script>
 </body>
 </html>
