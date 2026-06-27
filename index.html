@@ -1472,6 +1472,43 @@ function renderEditMarks() {
         </div>`).join('')}
       <button onclick="saveEditMarks()" style="width:100%;padding:0.75rem;background:linear-gradient(135deg,#ffffff,#cccccc);border:none;border-radius:12px;color:#000;font-size:0.7rem;font-weight:800;cursor:pointer;margin-top:0.5rem">Save Marks</button>
     </div>
+
+    <div class="glass" style="padding:1rem 1.2rem;margin-bottom:1rem">
+      <div class="shimmer"></div>
+      <div style="font-size:0.6rem;font-weight:700;color:var(--muted);margin-bottom:0.6rem;text-transform:uppercase;letter-spacing:0.06em">Import from PDF</div>
+      <div style="font-size:0.58rem;color:var(--faint);line-height:1.6;margin-bottom:0.8rem">Upload an exam timetable, learner guide or syllabus and Term Tracker reads the dates and weightings on your device. This is what switches on your exam countdown and Test Tracker.</div>
+      <label style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.8rem;border-radius:10px;cursor:pointer;background:rgba(255,255,255,0.05);border:1.5px dashed rgba(255,255,255,0.2);font-size:0.64rem;color:#fff;font-weight:600" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Choose timetable / syllabus PDF
+        <input type="file" accept="application/pdf,.pdf" multiple style="display:none" onchange="emImportPdf(this.files)"/>
+      </label>
+      <div id="em-import-msg" style="font-size:0.6rem;margin-top:0.7rem;line-height:1.5"></div>
+    </div>
+
+    <div class="glass" style="padding:1rem 1.2rem;margin-bottom:1rem">
+      <div class="shimmer"></div>
+      <div style="font-size:0.6rem;font-weight:700;color:var(--muted);margin-bottom:0.6rem;text-transform:uppercase;letter-spacing:0.06em">Scan a script → estimated mark</div>
+      <div style="font-size:0.58rem;color:var(--faint);line-height:1.6;margin-bottom:0.8rem">Upload a scanned/marked script (PDF). Term Tracker reads totals like <span style="font-family:var(--mono);color:#fff">68/100</span> or <span style="font-family:var(--mono);color:#fff">72%</span> and estimates a mark you can apply. It's an estimate from what it can read — always sanity-check it.</div>
+      <label style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.8rem;border-radius:10px;cursor:pointer;background:rgba(255,255,255,0.05);border:1.5px dashed rgba(255,255,255,0.2);font-size:0.64rem;color:#fff;font-weight:600" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Choose script PDF
+        <input type="file" accept="application/pdf,.pdf" style="display:none" onchange="emScanMark(this.files)"/>
+      </label>
+      <div id="em-scan-result" style="margin-top:0.8rem"></div>
+    </div>
+
+    <div class="glass" style="padding:1rem 1.2rem;margin-bottom:1rem">
+      <div class="shimmer"></div>
+      <div style="font-size:0.6rem;font-weight:700;color:var(--muted);margin-bottom:0.6rem;text-transform:uppercase;letter-spacing:0.06em">Mark display format</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem">
+        ${[['pct','Percentage','72%'],['frac','Out of 100','72/100'],['grade','Letter grade','B']].map(([f,lab,eg])=>`
+          <button onclick="setMarkFmt('${f}')" style="padding:0.6rem;border-radius:9px;cursor:pointer;font-family:inherit;text-align:center;background:${(USER_SETTINGS.markFmt||'pct')===f?'rgba(255,255,255,0.16)':'rgba(255,255,255,0.05)'};border:1px solid ${(USER_SETTINGS.markFmt||'pct')===f?'rgba(255,255,255,0.35)':'rgba(255,255,255,0.12)'};color:#fff">
+            <div style="font-size:0.62rem;font-weight:700">${lab}</div>
+            <div style="font-size:0.54rem;color:var(--muted);font-family:var(--mono);margin-top:0.15rem">${eg}</div>
+          </button>`).join('')}
+      </div>
+    </div>
+
     <div class="glass" style="padding:1rem 1.2rem">
       <div class="shimmer"></div>
       <div style="font-size:0.6rem;font-weight:700;color:var(--muted);margin-bottom:0.6rem;text-transform:uppercase;letter-spacing:0.06em">Program Settings</div>
@@ -1529,6 +1566,101 @@ function saveEditMarks() {
   });
   saveUserData();
   switchTab('overview');
+}
+
+/* ─── MARK FORMAT ─── */
+function setMarkFmt(f) {
+  USER_SETTINGS.markFmt = f;
+  saveUserData();
+  renderSidebar();
+  switchTab('editmarks');
+}
+function fmtMark(v) {
+  if (v == null || isNaN(v)) return '—';
+  const n = Math.round(v*10)/10;
+  const f = USER_SETTINGS.markFmt || 'pct';
+  if (f === 'frac')  return n + '/100';
+  if (f === 'grade') return v>=75?'A':v>=70?'B+':v>=60?'B':v>=50?'C':v>=40?'D':'F';
+  return n + '%';
+}
+
+/* ─── IMPORT TIMETABLE / SYLLABUS PDF ─── */
+async function emImportPdf(fileList) {
+  const msg = document.getElementById('em-import-msg');
+  const files = [...fileList].filter(f => /pdf$/i.test(f.name) || f.type === 'application/pdf');
+  if (!files.length) { if (msg){msg.style.color='var(--warn)';msg.textContent='Please choose a PDF file.';} return; }
+  if (msg) { msg.style.color='var(--muted)'; msg.textContent='Reading…'; }
+  let added = 0;
+  const timeline = (USER_SETTINGS.timeline || []).slice();
+  const seen = new Set(timeline.map(a=>a.name+'|'+a.date));
+  for (const f of files) {
+    try {
+      const text = await ttPdfText(f);
+      const { assessments } = ttExtractAssessments(text);
+      assessments.forEach(a => { const k=a.name+'|'+a.date; if(!seen.has(k)){ seen.add(k); timeline.push(a); added++; } });
+    } catch(e) {}
+  }
+  USER_SETTINGS.timeline = timeline;
+  const exam = timeline.filter(a=>a.type==='exam'&&a.date).map(a=>a.date).sort();
+  const any  = timeline.filter(a=>a.date).map(a=>a.date).sort();
+  USER_SETTINGS.examDate = exam[0] || any[0] || '';
+  USER_SETTINGS.hasExamData = !!USER_SETTINGS.examDate;
+  if (USER_SETTINGS.examDate) SEP_EXAM = new Date(USER_SETTINGS.examDate);
+  // attach to modules by code
+  MODS.forEach(m => { m.assessments = timeline.filter(a=>a.module && a.module===m.code); });
+  saveUserData();
+  renderSidebar();
+  if (msg) {
+    msg.style.color = added ? '#86efac' : 'var(--warn)';
+    msg.innerHTML = added
+      ? `Imported <strong>${added}</strong> dated item${added>1?'s':''}. ${USER_SETTINGS.hasExamData?'Your exam countdown is now live on the Overview.':''}`
+      : 'No dated assessments found in that PDF. Try a timetable that lists dates and weightings.';
+  }
+}
+
+/* ─── SCAN A SCRIPT → ESTIMATED MARK ─── */
+function estimateMarkFromText(text) {
+  const t = text.replace(/\s+/g,' ');
+  let best = null;
+  // X / Y patterns -> percentage (prefer the largest denominator, likely the grand total)
+  const frac = [...t.matchAll(/(\d{1,3}(?:\.\d+)?)\s*\/\s*(\d{2,3})/g)];
+  frac.forEach(m => { const got=+m[1], tot=+m[2]; if(tot>=20 && got<=tot){ const pct=got/tot*100; if(!best||tot>best.tot) best={pct,got,tot,raw:`${got}/${tot}`}; } });
+  if (best) return best;
+  // explicit percentage near total/result keywords
+  const pcts = [...t.matchAll(/(\d{1,3}(?:\.\d+)?)\s*%/g)].map(m=>+m[1]).filter(n=>n<=100);
+  if (pcts.length) { const pct=Math.max(...pcts); return {pct,got:pct,tot:100,raw:pct+'%'}; }
+  return null;
+}
+async function emScanMark(fileList) {
+  const res = document.getElementById('em-scan-result');
+  const file = [...fileList][0];
+  if (!file) return;
+  if (res) res.innerHTML = '<div style="font-size:0.6rem;color:var(--muted)">Reading script…</div>';
+  let est = null;
+  try { est = estimateMarkFromText(await ttPdfText(file)); } catch(e) {}
+  if (!est) { if (res) res.innerHTML = '<div style="font-size:0.6rem;color:var(--warn)">Couldn\'t find a clear total (like 68/100 or 72%) in that PDF. If it\'s a scanned image without text, the numbers can\'t be read on-device.</div>'; return; }
+  window._ttScanPct = Math.round(est.pct*10)/10;
+  if (res) res.innerHTML = `
+    <div style="padding:0.85rem;border-radius:10px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.22)">
+      <div style="font-size:0.55rem;color:var(--faint);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.2rem">Estimated mark</div>
+      <div style="font-family:var(--mono);font-size:1.6rem;font-weight:800;color:#86efac;line-height:1">${window._ttScanPct}%</div>
+      <div style="font-size:0.54rem;color:var(--muted);margin:0.2rem 0 0.7rem">read as ${est.raw} — verify against the actual script</div>
+      <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+        <select id="em-scan-mod" style="flex:1;min-width:130px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:0.45rem 0.6rem;color:#fff;font-size:0.62rem;outline:none">
+          ${MODS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}
+        </select>
+        <button onclick="emApplyScan()" style="padding:0.5rem 0.9rem;background:rgba(255,255,255,0.92);border:none;border-radius:8px;color:#000;font-size:0.6rem;font-weight:700;cursor:pointer">Apply as Jun mark</button>
+      </div>
+    </div>`;
+}
+function emApplyScan() {
+  const sel = document.getElementById('em-scan-mod');
+  const m = MODS.find(x=>x.id===sel.value);
+  if (m && window._ttScanPct != null) {
+    m.jun = window._ttScanPct; m.junRaw = window._ttScanPct; m.junTotal = 100;
+    m.junStatus = m.jun >= 50 ? 'pass' : 'fail';
+    saveUserData(); renderSidebar(); switchTab('overview');
+  }
 }
 
 function setBackground(style) {
@@ -1786,7 +1918,7 @@ function renderSidebar() {
     ${MODS.map(m => {
       const c  = m.junStatus==='pass' ? '#4ade80' : m.junStatus==='fail' ? '#fb7185' : '#c084fc';
       const bg = m.junStatus==='pass' ? 'rgba(74,222,128,0.12)' : m.junStatus==='fail' ? 'rgba(251,113,133,0.12)' : 'rgba(192,132,252,0.12)';
-      const badge = m.jun != null ? (m.jun.toFixed(1)+'%') : '—';
+      const badge = m.jun != null ? fmtMark(m.jun) : '—';
       return `<button class="nav-btn ${currentTab===m.id.toLowerCase()?'active':''}" onclick="switchTab('${m.id.toLowerCase()}')" aria-label="${m.name}" aria-current="${currentTab===m.id.toLowerCase()?'page':'false'}">
         <span class="nav-icon"><span class="dot" style="background:${m.color};box-shadow:0 0 6px ${m.color}80"></span></span>
         <span style="flex:1">${m.name.length>14?m.name.substring(0,12)+'…':m.name}</span>
