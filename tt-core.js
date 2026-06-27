@@ -21,6 +21,19 @@
    4. Authentication → Providers → Email: turn OFF "Confirm email" for the
       smoothest student sign-up (or leave on if you want verification).
    That's it — sign-ups now create real, retrievable accounts.
+
+   TO TURN ON "CONTINUE WITH GOOGLE" (recommended — safest, no passwords)
+   ─────────────────────────────────────────────────────────────────────
+   1. In Supabase: Authentication → Providers → Google → Enable.
+   2. It shows a redirect/callback URL — copy it.
+   3. In Google Cloud Console → APIs & Services → Credentials → create an
+      "OAuth client ID" (type: Web application). Add your site URL to
+      "Authorized JavaScript origins" and paste Supabase's callback URL into
+      "Authorized redirect URIs".
+   4. Copy the Google Client ID + Secret back into Supabase's Google provider.
+   The "Continue with Google" button then signs students in with no password
+   for us to ever store. (Until cloud mode is on, the button explains it needs
+   Supabase keys.)
    ════════════════════════════════════════════════════════════════════ */
 
 const TT_CONFIG = {
@@ -61,6 +74,18 @@ const TT_CONFIG = {
   }
 
   function setCurrent(u) { u ? lsSet(LS_CURRENT, u) : (function(){ try { localStorage.removeItem(LS_CURRENT); } catch(e){} })(); }
+  // Derive first/last name from Supabase metadata (handles Google's full_name/name)
+  function namesFromMeta(meta, email) {
+    meta = meta || {};
+    let first = meta.firstName || meta.given_name || '';
+    let last  = meta.lastName  || meta.family_name || '';
+    if (!first && !last) {
+      const full = (meta.full_name || meta.name || '').trim();
+      if (full) { const parts = full.split(/\s+/); first = parts.shift(); last = parts.join(' '); }
+    }
+    if (!first) first = (email || '').split('@')[0] || 'Student';
+    return { first, last };
+  }
   function summary(u) {
     if (!u) return null;
     const first = u.firstName || '', last = u.lastName || '';
@@ -96,8 +121,8 @@ const TT_CONFIG = {
     async signIn(email, password) {
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw new Error(error.message);
-      const m = data.user.user_metadata || {};
-      const u = { id: data.user.id, email: data.user.email, firstName: m.firstName || '', lastName: m.lastName || '' };
+      const n = namesFromMeta(data.user.user_metadata, data.user.email);
+      const u = { id: data.user.id, email: data.user.email, firstName: n.first, lastName: n.last };
       setCurrent(summary(u));
       return summary(u);
     },
@@ -152,8 +177,10 @@ const TT_CONFIG = {
       // keep cached current-user fresh across tabs/sessions
       sb.auth.onAuthStateChange((_evt, session) => {
         if (session && session.user) {
-          const m = session.user.user_metadata || {};
-          setCurrent(summary({ id: session.user.id, email: session.user.email, firstName: m.firstName, lastName: m.lastName }));
+          const n = namesFromMeta(session.user.user_metadata, session.user.email);
+          setCurrent(summary({ id: session.user.id, email: session.user.email, firstName: n.first, lastName: n.last }));
+          // ensure a profile row exists for OAuth (Google) users
+          try { sb.from('profiles').upsert({ id: session.user.id, data: {} }, { ignoreDuplicates: true }); } catch (e) {}
         } else { setCurrent(null); }
         readyResolve(mode);
       });
@@ -175,6 +202,17 @@ const TT_CONFIG = {
     signUp(d)      { return impl.signUp(d); },
     signIn(e, p)   { return impl.signIn(e, p); },
     signOut()      { return impl.signOut(); },
+    /** True when Google OAuth is available (cloud mode with Supabase configured). */
+    canGoogle()    { return mode === 'cloud' && !!sb; },
+    /** Begin Google OAuth. Redirects to `redirect` (default index.html) after success. */
+    async signInWithGoogle(redirect) {
+      if (mode !== 'cloud' || !sb) {
+        throw new Error('Google sign-in needs cloud mode — add your Supabase keys in tt-core.js to enable it.');
+      }
+      const redirectTo = new URL(redirect || 'index.html', location.href).href;
+      const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+      if (error) throw new Error(error.message);
+    },
     /** Redirect to the landing page if nobody is signed in. Returns the user or null. */
     requireAuth(redirect = 'landing.html') {
       const u = this.currentUser();
