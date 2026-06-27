@@ -845,6 +845,23 @@ button, [onclick]:not(input):not(select):not(textarea) { cursor: pointer; }
 .fc-btn-got:hover { background: rgba(74,222,128,0.16); color: #bbf7d0; }
 .fc-btn-shaky { color: #fbbf24; border-color: rgba(251,191,36,0.3); background: rgba(251,191,36,0.08); }
 .fc-btn-shaky:hover { background: rgba(251,191,36,0.16); color: #fde68a; }
+
+/* ─── TEST TRACKER TIMELINE ─── */
+.tl-list { display: flex; flex-direction: column; gap: 0.55rem; }
+.tl-item {
+  display: flex; align-items: center; gap: 0.85rem; padding: 0.8rem 1rem;
+  border-radius: 12px; border-left: 3px solid #fff;
+  background: rgba(255,255,255,0.04); border-top: 1px solid rgba(255,255,255,0.08);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+  transition: transform 0.2s cubic-bezier(0.16,1,0.3,1), background 0.2s;
+}
+.tl-item:hover { transform: translateX(3px); background: rgba(255,255,255,0.07); }
+.tl-date { display: flex; flex-direction: column; align-items: center; min-width: 38px; flex-shrink: 0; }
+.tl-d { font-family: var(--mono); font-size: 1.05rem; font-weight: 800; line-height: 1; }
+.tl-m { font-size: 0.5rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); font-weight: 700; margin-top: 0.1rem; }
+.tl-name { font-size: 0.74rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-meta { font-size: 0.56rem; color: var(--muted); margin-top: 0.18rem; }
+.tl-when { font-size: 0.6rem; font-weight: 700; font-family: var(--mono); white-space: nowrap; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -2123,45 +2140,45 @@ function renderModulePage(mod) {
     </div>`;
 }
 
-/* ─── SEP PLANNER ─── */
+/* ─── TEST TRACKER (assessment timeline) ─── */
+function modColorFor(code){ const m = MODS.find(x=>x.code===code); return m?m.color:'#ffffff'; }
 function renderPlanner() {
+  const now = new Date();
+  const items = (USER_SETTINGS.timeline||[]).filter(a=>a.date).slice()
+    .sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const upcoming = items.filter(a=>new Date(a.date) >= now);
+  const past = items.filter(a=>new Date(a.date) < now).reverse();
+  const typeColor = t => t==='exam'?'#fb7185':t==='test'?'#fbbf24':t==='assignment'?'#60a5fa':'#c084fc';
+  const row = (a, isPast) => {
+    const d = new Date(a.date);
+    const days = Math.ceil((d - now)/86400000);
+    const col = a.module ? modColorFor(a.module) : typeColor(a.type);
+    const when = isPast ? 'Done' : days===0?'Today':days===1?'Tomorrow':`in ${days} days`;
+    return `<div class="tl-item" style="border-left-color:${col};${isPast?'opacity:0.6':''}">
+      <div class="tl-date"><span class="tl-d">${d.getDate()}</span><span class="tl-m">${d.toLocaleDateString('en-ZA',{month:'short'})}</span></div>
+      <div style="flex:1;min-width:0">
+        <div class="tl-name">${a.name}</div>
+        <div class="tl-meta"><span style="color:${typeColor(a.type)};font-weight:700;text-transform:capitalize">${a.type}</span>${a.module?` · ${a.module}`:''}${a.weight!=null?` · ${a.weight}%`:''}</div>
+      </div>
+      <span class="tl-when" style="color:${isPast?'var(--faint)':days<=7?'#fbbf24':'var(--muted)'}">${when}</span>
+    </div>`;
+  };
   return `
     <div class="ph">
-      <span class="ph-sup">Scenario Planning</span>
-      <div class="ph-h1">September Planner</div>
-      <span class="ph-sub">Simulate any September score and see its impact on all four year marks</span>
+      <span class="ph-sup">Stay on top of every deadline</span>
+      <div class="ph-h1">Test Tracker</div>
+      <span class="ph-sub">Every test, assignment and exam from your uploads — newest deadline first</span>
     </div>
-    <div class="sep-wrap">
-      <div class="glass sep-card">
+    ${items.length ? `
+      ${upcoming.length?`<div class="slabel">Upcoming</div><div class="tl-list" style="margin-bottom:1.6rem">${upcoming.map(a=>row(a,false)).join('')}</div>`:''}
+      ${past.length?`<div class="slabel">Completed</div><div class="tl-list">${past.map(a=>row(a,true)).join('')}</div>`:''}
+    ` : `
+      <div class="glass" style="padding:2.6rem;text-align:center">
         <div class="shimmer"></div>
-        <div class="sep-input">
-          <span class="sep-if">If I score</span>
-          <span class="sep-num" id="sep-big">${sepVal}%</span>
-          <span class="sep-then">in September, my year marks become</span>
-          <input type="range" class="sep-slider" id="sep-slider" min="0" max="100" step="1" value="${sepVal}">
-          <div class="sep-ticks">${[0,25,50,75,100].map(v=>`<span>${v}%</span>`).join('')}</div>
-        </div>
-        <div class="sep-results" id="sep-results">
-          ${MODS.map(m=>{
-            const ym = ymOf(m,sepVal), clears = ym>=50;
-            return `<div class="sep-r${clears?" clears":""}" id="sep-r-${m.id}">
-              <div class="sep-r-head">
-                <div class="sep-r-left">
-                  <span class="dot" style="background:${m.color};box-shadow:0 0 6px ${m.color}80"></span>
-                  <span class="sep-r-id">${m.id}</span>
-                  <span class="sep-r-sub">— ${m.name.split(' ')[0]} — year mark</span>
-                </div>
-                <span class="sep-r-ym" id="sep-ym-${m.id}" style="color:${cv(ym)};text-shadow:0 0 10px ${cv(ym)}36">${f1(ym)}</span>
-              </div>
-              ${pbar(ym, cv(ym), clears?"rgba(74,222,128,0.10)":"rgba(255,255,255,0.09)", 5)}
-              <div class="sep-r-status" id="sep-status-${m.id}" style="color:${clears?"#4ade80":"var(--muted)"};font-weight:${clears?600:400}">
-                ${clears?"Clears 50% year mark":`Needs ${sepFor(m).toFixed(0)}% in Sep to reach 50%`}
-              </div>
-            </div>`;
-          }).join('')}
-        </div>
-      </div>
-    </div>`;
+        <div style="font-size:0.9rem;font-weight:700;margin-bottom:0.5rem">No dated assessments yet</div>
+        <div style="font-size:0.7rem;color:var(--muted);line-height:1.7;max-width:44ch;margin:0 auto 1.3rem">Upload your exam timetable or learner guide and Term Tracker lays out every test and assignment here, with live countdowns.</div>
+        <button onclick="switchTab('editmarks')" style="padding:0.6rem 1.3rem;background:rgba(255,255,255,0.92);border:none;border-radius:10px;color:#000;font-size:0.7rem;font-weight:700;cursor:pointer">Upload timetable</button>
+      </div>`}`;
 }
 
 /* ─── INSIGHTS ─── */
@@ -2188,9 +2205,9 @@ function buildInsights() {
       out.push({marker:ini(m),mc:m.color,text:`<strong style="color:#fff">${m.name}</strong> — you flagged <em>${topics.join(', ')}</em>. Build a focused study block for each: work 2–3 past questions per topic and review the marking memo line-by-line. These feed your Flashcards deck.`});
     }
     if (mark != null && mark < 50) {
-      out.push({marker:ini(m),mc:'#fb7185',text:`<strong style="color:#fff">${m.name}</strong> is sitting at <strong style="color:#fb7185">${f1(mark)}%</strong> — your top priority. Aim to lift it above 50% by drilling your weakest sections first; small, consistent reps beat one long cram.`});
+      out.push({marker:ini(m),mc:'#fb7185',text:`<strong style="color:#fff">${m.name}</strong> is sitting at <strong style="color:#fb7185">${f1(mark)}</strong> — your top priority. Aim to lift it above 50% by drilling your weakest sections first; small, consistent reps beat one long cram.`});
     } else if (mark != null && mark < 60) {
-      out.push({marker:ini(m),mc:'#fbbf24',text:`<strong style="color:#fff">${m.name}</strong> at <strong style="color:#fbbf24">${f1(mark)}%</strong> is a pass you should protect and grow. Tighten the sections you find shaky to push toward a comfortable margin.`});
+      out.push({marker:ini(m),mc:'#fbbf24',text:`<strong style="color:#fff">${m.name}</strong> at <strong style="color:#fbbf24">${f1(mark)}</strong> is a pass you should protect and grow. Tighten the sections you find shaky to push toward a comfortable margin.`});
     }
   });
   if (!out.length) {
