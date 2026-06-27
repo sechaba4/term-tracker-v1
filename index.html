@@ -811,6 +811,40 @@ button, [onclick]:not(input):not(select):not(textarea) { cursor: pointer; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+
+/* ─── FLASHCARDS ─── */
+.fc-card {
+  position: relative; overflow: hidden; cursor: pointer;
+  min-height: 230px; padding: 1.8rem; border-radius: 20px;
+  display: flex; flex-direction: column; justify-content: center;
+  background: rgba(0,0,0,0.66);
+  backdrop-filter: blur(36px) saturate(200%);
+  -webkit-backdrop-filter: blur(36px) saturate(200%);
+  border: 1px solid rgba(255,255,255,0.18); border-top-color: rgba(255,255,255,0.45);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.55), inset 0 1.5px 0 rgba(255,255,255,0.5);
+  transition: transform 0.28s cubic-bezier(0.34,1.4,0.6,1), box-shadow 0.28s;
+}
+.fc-card:hover { transform: translateY(-3px); box-shadow: 0 28px 70px rgba(0,0,0,0.7), inset 0 1.5px 0 rgba(255,255,255,0.55); }
+.fc-card:active { transform: translateY(-1px) scale(0.992); }
+.fc-mod { position: absolute; top: 1.1rem; left: 1.4rem; font-size: 0.56rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+.fc-face { animation: fcFade 0.3s cubic-bezier(0.16,1,0.3,1); }
+@keyframes fcFade { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+.fc-q { font-size: 1.55rem; font-weight: 900; letter-spacing: -0.03em; line-height: 1.15; margin-bottom: 0.8rem; text-wrap: balance; }
+.fc-hint { font-size: 0.66rem; color: var(--faint); line-height: 1.6; }
+.fc-a-l { font-size: 0.56rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--faint); margin-bottom: 0.55rem; }
+.fc-a { font-size: 0.86rem; color: rgba(255,255,255,0.84); line-height: 1.7; }
+.fc-btn {
+  padding: 0.55rem 0.95rem; border-radius: 10px; cursor: pointer;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.13); border-top-color: rgba(255,255,255,0.24);
+  color: var(--muted); font-family: inherit; font-size: 0.66rem; font-weight: 600;
+  transition: background 0.2s, color 0.2s, transform 0.12s, border-color 0.2s;
+}
+.fc-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.fc-btn:active { transform: scale(0.96); }
+.fc-btn-got { color: #86efac; border-color: rgba(74,222,128,0.3); background: rgba(74,222,128,0.08); }
+.fc-btn-got:hover { background: rgba(74,222,128,0.16); color: #bbf7d0; }
+.fc-btn-shaky { color: #fbbf24; border-color: rgba(251,191,36,0.3); background: rgba(251,191,36,0.08); }
+.fc-btn-shaky:hover { background: rgba(251,191,36,0.16); color: #fde68a; }
 </style>
 </head>
 <body>
@@ -1999,27 +2033,115 @@ function renderPlanner() {
 }
 
 /* ─── INSIGHTS ─── */
+/* Split a struggle string into individual topics */
+function struggleTopics(m) {
+  return (m.struggles||'').split(/[,;\n•]+/).map(s=>s.trim()).filter(Boolean);
+}
+/* Build personalised tips from struggles, marks and the upcoming timeline */
+function buildInsights() {
+  const out = [];
+  const ini = m => (m.code||m.name||'?').substring(0,3).toUpperCase();
+  // Upcoming assessment (soonest future dated item)
+  const now = new Date();
+  const upcoming = (USER_SETTINGS.timeline||[]).filter(a=>a.date && new Date(a.date) >= now)
+    .sort((a,b)=>new Date(a.date)-new Date(b.date))[0];
+  if (upcoming) {
+    const days = Math.ceil((new Date(upcoming.date)-now)/86400000);
+    out.push({marker:'NEXT',mc:'#ffffff',text:`Your next deadline is <strong style="color:#fff">${upcoming.name}</strong> in <strong style="color:#fff">${days} day${days!==1?'s':''}</strong>${upcoming.weight!=null?` — worth ${upcoming.weight}%`:''}. Front-load the topics you flagged as weak before then.`});
+  }
+  MODS.forEach(m => {
+    const topics = struggleTopics(m);
+    const mark = m.jun;
+    if (topics.length) {
+      out.push({marker:ini(m),mc:m.color,text:`<strong style="color:#fff">${m.name}</strong> — you flagged <em>${topics.join(', ')}</em>. Build a focused study block for each: work 2–3 past questions per topic and review the marking memo line-by-line. These feed your Flashcards deck.`});
+    }
+    if (mark != null && mark < 50) {
+      out.push({marker:ini(m),mc:'#fb7185',text:`<strong style="color:#fff">${m.name}</strong> is sitting at <strong style="color:#fb7185">${f1(mark)}%</strong> — your top priority. Aim to lift it above 50% by drilling your weakest sections first; small, consistent reps beat one long cram.`});
+    } else if (mark != null && mark < 60) {
+      out.push({marker:ini(m),mc:'#fbbf24',text:`<strong style="color:#fff">${m.name}</strong> at <strong style="color:#fbbf24">${f1(mark)}%</strong> is a pass you should protect and grow. Tighten the sections you find shaky to push toward a comfortable margin.`});
+    }
+  });
+  if (!out.length) {
+    out.push({marker:'TIP',mc:'#ffffff',text:`Tell Term Tracker which sections you find hardest (in <strong style="color:#fff">Edit Marks</strong> → each module) and upload a learner guide, and this tab fills with tips tailored to you.`});
+  }
+  // A couple of evergreen study tips
+  out.push({marker:'HOW',mc:'#60a5fa',text:`Study actively: after each topic, close the notes and write what you remember from memory — then check. Recall practice sticks far better than re-reading.`});
+  return out;
+}
 function renderInsights() {
-  const items = [
-    {marker:"FAC",mc:"#fb7185",border:"#fb7185",text:"Financial Accounting (42/120 = 35%) is the only failure. Three compounding errors dominate: compound instrument classification (IAS 32 fixed-for-fixed test), flat PMT on an uneven IFRS 16 lease (HP CF-register needed), and a DTA schedule submitted instead of a permanent-difference rate reconciliation — Q(h) alone carries 33 marks. September target: 59%."},
-    {marker:"AUC",mc:"#60a5fa",border:"#60a5fa",text:"Auditing & Control (75.5/120 = 62.9%) — re-marked, +1 corrected from Q2(c). The 11-mark blind spot was Q2(a): a positive ISA 220 assessment was given when the question required identifying red flags — S75, S90(2)(b), CPC S523, sold ill animal, JSE listing incentive. September target: 48.8%."},
-    {marker:"TAX",mc:"#4ade80",border:"#4ade80",text:"Taxation (71.5/120 = 59.6%) — re-marked, +2.5 corrected from original 69/120. Connected person threshold confusion cost ~11 marks: s1 general = >50%, s31 transfer pricing = >20%, par 56 clogged loss = >70% — never mix these. September target: 50.3%."},
-    {marker:"MAF",mc:"#fbbf24",border:"#fbbf24",text:"Management Accounting & Finance (64/120 = 53.3%) — newly marked, passes. Q2(a) TP range lost 12 marks from one input error (5,000 vs 4,000 slabs). Q2(e) FCF valuation lost 7 marks: WACC correct but wrong FCF derivation and terminal value — used g alone instead of (WACC − g). September target: 48.5%."},
-    {marker:"SEP",mc:"#ffffff",border:"#ffffff",text:"September priority order: (1) FAC — 59% needed, most work required; fix IAS 32 + IFRS 16 + rate recon before anything else. (2) TAX — 50.3% needed, the connected-person threshold table must be memorised cold. (3) AUC and MAF — ~49% each, protect the pass. October entrance is secure across all four subjects — all HYMs are above 25%."}
-  ];
+  const items = buildInsights();
   return `
     <div class="ph">
-      <span class="ph-sup">June 2026 Analysis</span>
-      <div class="ph-h1">Results & September Roadmap</div>
-      <span class="ph-sub">Per-module analysis with actionable September priorities</span>
+      <span class="ph-sup">Personalised for ${USER_SETTINGS.firstName||'you'}</span>
+      <div class="ph-h1">Tips & Insights</div>
+      <span class="ph-sub">Built from the sections you struggle with, your marks, and your upcoming assessments</span>
     </div>
     <div class="insights">
-      ${items.map(it=>`<div class="insight" style="border-left-color:${it.border}">
+      ${items.map(it=>`<div class="insight" style="border-left-color:${it.mc}">
         <div class="insight-marker" style="background:${it.mc}18;border-color:${it.mc}35;color:${it.mc}">${it.marker}</div>
         <span class="insight-text">${it.text}</span>
       </div>`).join('')}
     </div>`;
 }
+
+/* ─── FLASHCARDS (from struggle topics) ─── */
+let fcDeck = [], fcIdx = 0, fcFlipped = false;
+function buildDeck() {
+  const deck = [];
+  MODS.forEach(m => struggleTopics(m).forEach(t => deck.push({ module:m.name, code:m.code, color:m.color, topic:t })));
+  return deck;
+}
+function renderFlashcards() {
+  fcDeck = buildDeck();
+  if (!fcDeck.length) {
+    return `
+      <div class="ph">
+        <span class="ph-sup">Active recall</span>
+        <div class="ph-h1">Flashcards</div>
+        <span class="ph-sub">Quick self-quiz on the topics you find hardest</span>
+      </div>
+      <div class="glass" style="padding:2.6rem;text-align:center">
+        <div class="shimmer"></div>
+        <div style="font-size:0.9rem;font-weight:700;margin-bottom:0.5rem">No weak topics yet</div>
+        <div style="font-size:0.7rem;color:var(--muted);line-height:1.7;max-width:42ch;margin:0 auto 1.3rem">Add the sections you struggle with for each module and Term Tracker turns them into a recall deck — front shows the topic, you explain it from memory, then flip to self-check.</div>
+        <button onclick="switchTab('editmarks')" style="padding:0.6rem 1.3rem;background:rgba(255,255,255,0.92);border:none;border-radius:10px;color:#000;font-size:0.7rem;font-weight:700;cursor:pointer">Add weak topics</button>
+      </div>`;
+  }
+  if (fcIdx >= fcDeck.length) fcIdx = 0;
+  const c = fcDeck[fcIdx];
+  return `
+    <div class="ph">
+      <span class="ph-sup">Active recall · ${fcIdx+1} of ${fcDeck.length}</span>
+      <div class="ph-h1">Flashcards</div>
+      <span class="ph-sub">Explain the topic out loud or on paper, then flip to self-check</span>
+    </div>
+    <div style="max-width:560px;margin:0 auto">
+      <div class="fc-card" onclick="fcFlip()" style="border-left:4px solid ${c.color}">
+        <div class="shimmer"></div>
+        <span class="fc-mod" style="color:${c.color}">${c.module}</span>
+        ${!fcFlipped ? `
+          <div class="fc-face">
+            <div class="fc-q">${c.topic}</div>
+            <div class="fc-hint">Recall everything you can — definitions, the method, common traps — then tap to flip</div>
+          </div>` : `
+          <div class="fc-face">
+            <div class="fc-a-l">Self-check</div>
+            <div class="fc-a">Did you cover the <strong>definition</strong>, the <strong>step-by-step method</strong>, a <strong>worked example</strong>, and the <strong>common mistakes</strong> for "${c.topic}"? Anything you missed is exactly what to revise next.</div>
+          </div>`}
+      </div>
+      <div style="display:flex;gap:0.6rem;margin-top:1rem;justify-content:center">
+        <button class="fc-btn" onclick="fcPrev()">← Prev</button>
+        <button class="fc-btn fc-btn-shaky" onclick="fcRate(false)">Still shaky</button>
+        <button class="fc-btn fc-btn-got" onclick="fcRate(true)">Got it ✓</button>
+        <button class="fc-btn" onclick="fcNext()">Next →</button>
+      </div>
+    </div>`;
+}
+function fcFlip(){ fcFlipped=!fcFlipped; refreshFlashcards(); }
+function fcNext(){ fcIdx=(fcIdx+1)%fcDeck.length; fcFlipped=false; refreshFlashcards(); }
+function fcPrev(){ fcIdx=(fcIdx-1+fcDeck.length)%fcDeck.length; fcFlipped=false; refreshFlashcards(); }
+function fcRate(got){ /* simple progress nudge */ fcNext(); }
+function refreshFlashcards(){ const el=document.getElementById('main'); if(el) el.innerHTML=`<div class="page">${renderFlashcards()}</div>`; }
 
 /* ─── GRADER ─── */
 function renderGrader() {
@@ -2700,6 +2822,7 @@ function switchTab(tab) {
   if(tab==='overview') html=renderOverview();
   else if(tab==='planner') html=renderPlanner();
   else if(tab==='insights') html=renderInsights();
+  else if(tab==='flashcards') html=renderFlashcards();
   else if(tab==='grader') html=renderGrader();
   else if(tab==='schedule') html=renderSchedule();
   else if(tab==='tracker') html=renderTracker();
