@@ -863,6 +863,27 @@ button, [onclick]:not(input):not(select):not(textarea) { cursor: pointer; }
 .tl-name { font-size: 0.74rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tl-meta { font-size: 0.56rem; color: var(--muted); margin-top: 0.18rem; }
 .tl-when { font-size: 0.6rem; font-weight: 700; font-family: var(--mono); white-space: nowrap; flex-shrink: 0; }
+
+/* ─── TOAST NOTIFICATIONS ─── */
+#tt-toast-container {
+  position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 10000;
+  display: flex; flex-direction: column-reverse; gap: 0.5rem;
+  pointer-events: none; max-width: min(380px, 90vw);
+}
+.tt-toast {
+  padding: 0.72rem 1.1rem; border-radius: 12px;
+  font-size: 0.76rem; font-weight: 600; line-height: 1.5;
+  pointer-events: auto; cursor: default;
+  opacity: 0; transform: translateY(8px) scale(0.97);
+  transition: opacity 0.28s cubic-bezier(0.23,1,0.32,1), transform 0.28s cubic-bezier(0.23,1,0.32,1);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+}
+.tt-toast-in { opacity: 1; transform: translateY(0) scale(1); }
+.tt-toast-info  { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); color: #fff; }
+.tt-toast-error { background: rgba(251,113,133,0.18); border: 1px solid rgba(251,113,133,0.35); color: #fb7185; }
+.tt-toast-ok    { background: rgba(74,222,128,0.14); border: 1px solid rgba(74,222,128,0.30); color: #4ade80; }
+.tt-toast-warn  { background: rgba(251,191,36,0.14); border: 1px solid rgba(251,191,36,0.28); color: #fbbf24; }
+@media (max-width: 600px) { #tt-toast-container { bottom: 1rem; right: 0.75rem; left: 0.75rem; max-width: none; } }
 </style>
 </head>
 <body>
@@ -995,6 +1016,46 @@ const NAV_ICONS = {
   grader:   `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5 9.8 5.2l4 .6-2.9 2.8.7 4L8 10.5l-3.6 1.9.7-4L2.1 5.8l4-.6z"/></svg>`,
 };
 
+/* ─── HTML ESCAPING (XSS prevention) ─── */
+const _escMap = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+function esc(s) { return s == null ? '' : String(s).replace(/[&<>"']/g, c => _escMap[c]); }
+
+/* ─── TOAST NOTIFICATIONS ─── */
+function showToast(msg, kind, durationMs) {
+  kind = kind || 'info';
+  durationMs = durationMs || (kind === 'error' ? 6000 : 3500);
+  let container = document.getElementById('tt-toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'tt-toast-container';
+    container.setAttribute('role', 'status');
+    container.setAttribute('aria-live', 'polite');
+    document.body.appendChild(container);
+  }
+  const t = document.createElement('div');
+  t.className = 'tt-toast tt-toast-' + kind;
+  t.textContent = msg;
+  container.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('tt-toast-in'));
+  setTimeout(() => {
+    t.classList.remove('tt-toast-in');
+    t.addEventListener('transitionend', () => t.remove(), { once: true });
+    setTimeout(() => t.remove(), 400);
+  }, durationMs);
+}
+
+/* ─── GLOBAL ERROR HANDLER ─── */
+window.onerror = function(msg, src, line) {
+  console.error('[TT]', msg, src, line);
+  showToast('Something went wrong. Your data is safe — try refreshing.', 'error');
+};
+window.addEventListener('unhandledrejection', function(e) {
+  console.error('[TT] Unhandled promise:', e.reason);
+  if (e.reason && /fetch|network|supabase|PGRST/i.test(String(e.reason))) {
+    showToast('Connection issue — changes may not have synced. Check your network.', 'error');
+  }
+});
+
 /* ─── DATA & STORAGE ─── */
 const W = {Feb:10, Apr:15, Jun:30, Sep:45};
 const LS_KEY = 'marks_dashboard_v2';
@@ -1018,10 +1079,19 @@ function loadUserData() {
 
 function saveUserData() {
   const profile = { isSetup:true, modules:MODS, settings:USER_SETTINGS };
-  // Per-account memory (cloud when configured, else this browser)
-  try { if (window.TTStore) TTStore.saveProfile(profile); } catch(e) {}
   // Legacy/local mirror so the app still opens instantly offline
-  try { localStorage.setItem(LS_KEY, JSON.stringify(profile)); } catch(e) {}
+  try { localStorage.setItem(LS_KEY, JSON.stringify(profile)); } catch(e) {
+    console.error('[TT] localStorage write failed:', e);
+  }
+  // Per-account memory (cloud when configured, else this browser)
+  if (window.TTStore) {
+    TTStore.saveProfile(profile).then(ok => {
+      if (!ok) showToast('Your changes were saved locally but failed to sync to the cloud. Check your connection.', 'warn');
+    }).catch(e => {
+      console.error('[TT] Cloud save failed:', e);
+      showToast('Cloud sync failed — your data is safe locally. It will sync when the connection is restored.', 'warn');
+    });
+  }
 }
 
 /* Hydrate MODS / USER_SETTINGS from the signed-in account's saved profile. */
@@ -1361,11 +1431,11 @@ function renderOnboarding() {
           <div style="padding:0.8rem;border-radius:12px;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-left:3px solid ${m.color};margin-bottom:0.6rem">
             <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem">
               <input type="color" value="${m.color}" title="Colour" style="width:30px;height:30px;border:none;background:none;cursor:pointer;border-radius:6px;padding:2px" oninput="ob.modules[${i}].color=this.value;renderOnboarding()"/>
-              <input type="text" placeholder="Module name" value="${m.name}" style="flex:2;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:9px;padding:0.5rem 0.7rem;color:#fff;font-size:0.66rem;outline:none;font-family:Inter,sans-serif" oninput="ob.modules[${i}].name=this.value"/>
-              <input type="text" placeholder="Code" value="${m.code}" style="flex:1;min-width:60px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:9px;padding:0.5rem 0.7rem;color:#fff;font-size:0.62rem;outline:none;font-family:var(--mono)" oninput="ob.modules[${i}].code=this.value"/>
+              <input type="text" placeholder="Module name" value="${esc(m.name)}" style="flex:2;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:9px;padding:0.5rem 0.7rem;color:#fff;font-size:0.66rem;outline:none;font-family:Inter,sans-serif" oninput="ob.modules[${i}].name=this.value"/>
+              <input type="text" placeholder="Code" value="${esc(m.code)}" style="flex:1;min-width:60px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:9px;padding:0.5rem 0.7rem;color:#fff;font-size:0.62rem;outline:none;font-family:var(--mono)" oninput="ob.modules[${i}].code=this.value"/>
               ${ob.modules.length>1?`<button onclick="ob.modules.splice(${i},1);renderOnboarding()" style="background:rgba(251,113,133,0.15);border:1px solid rgba(251,113,133,0.3);color:#fb7185;border-radius:7px;padding:0.4rem 0.55rem;cursor:pointer;font-size:0.6rem">✕</button>`:''}
             </div>
-            <textarea placeholder="Sections / topics you struggle with (e.g. consolidations, deferred tax, leases)" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.5rem 0.65rem;color:#fff;font-size:0.62rem;outline:none;font-family:Inter,sans-serif;resize:vertical;min-height:42px;line-height:1.5" oninput="ob.modules[${i}].struggles=this.value">${m.struggles||''}</textarea>
+            <textarea placeholder="Sections / topics you struggle with (e.g. consolidations, deferred tax, leases)" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.5rem 0.65rem;color:#fff;font-size:0.62rem;outline:none;font-family:Inter,sans-serif;resize:vertical;min-height:42px;line-height:1.5" oninput="ob.modules[${i}].struggles=this.value">${esc(m.struggles||'')}</textarea>
           </div>`).join('')}
       </div>
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
@@ -1381,7 +1451,7 @@ function renderOnboarding() {
           const cnt = ob.timeline.filter(a=>a.module===m.code).length;
           return `<div style="margin-bottom:0.9rem;padding:0.8rem;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-left:3px solid ${m.color};border-radius:10px">
             <div style="font-size:0.62rem;font-weight:700;color:#fff;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center">
-              <span>${m.name||'Module '+(i+1)}</span>
+              <span>${esc(m.name)||'Module '+(i+1)}</span>
               ${cnt?`<span style="font-size:0.5rem;color:var(--faint);font-weight:600">${cnt} assessment${cnt>1?'s':''} detected</span>`:''}
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem">
@@ -1413,16 +1483,16 @@ function renderOnboarding() {
 
 function obNext() {
   if (ob.step === 1) {
-    if (!ob.firstName.trim() || !ob.lastName.trim()) { alert('Please enter your name and surname.'); return; }
-    if (!ob.university.trim()) { alert('Please choose or type your university.'); return; }
-    if (!ob.year) { alert('Please select your year of study.'); return; }
+    if (!ob.firstName.trim() || !ob.lastName.trim()) { showToast('Please enter your name and surname.', 'warn'); return; }
+    if (!ob.university.trim()) { showToast('Please choose or type your university.', 'warn'); return; }
+    if (!ob.year) { showToast('Please select your year of study.', 'warn'); return; }
     ob.step = 2; renderOnboarding();
   } else if (ob.step === 2) {
     ob.step = 3;
     if (!ob.modules.length) ob.modules = [{ id:'MOD1', name:'', code:'', color:MOD_COLORS[0], struggles:'' }];
     renderOnboarding();
   } else if (ob.step === 3) {
-    if (!ob.modules.some(m => m.name.trim())) { alert('Please add at least one module with a name.'); return; }
+    if (!ob.modules.some(m => m.name.trim())) { showToast('Please add at least one module with a name.', 'warn'); return; }
     ob.modules = ob.modules.filter(m => m.name.trim());
     ob.modules.forEach((m,i) => { if (!m.code.trim()) m.code = (m.name.substring(0,3).toUpperCase().replace(/\s/g,'')||'MOD') + (i+1); });
     ob.step = 4; renderOnboarding();
@@ -1466,7 +1536,7 @@ function obNext() {
 function renderEditMarks() {
   return `
     <div class="ph">
-      <span class="ph-sup">${USER_SETTINGS.program}</span>
+      <span class="ph-sup">${esc(USER_SETTINGS.program)}</span>
       <div class="ph-h1">Edit Marks</div>
       <span class="ph-sub">Update your marks below — changes save instantly</span>
     </div>
@@ -1476,8 +1546,8 @@ function renderEditMarks() {
       ${MODS.map((m,i)=>`
         <div style="margin-bottom:1.1rem;padding:1rem 1.1rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-left:3px solid ${m.color};border-radius:12px">
           <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.8rem">
-            <span style="font-size:0.65rem;font-weight:700;color:#fff">${m.name}</span>
-            <span style="font-size:0.5rem;font-family:var(--mono);color:var(--faint);border:1px solid rgba(255,255,255,0.1);padding:1px 7px;border-radius:5px">${m.code}</span>
+            <span style="font-size:0.65rem;font-weight:700;color:#fff">${esc(m.name)}</span>
+            <span style="font-size:0.5rem;font-family:var(--mono);color:var(--faint);border:1px solid rgba(255,255,255,0.1);padding:1px 7px;border-radius:5px">${esc(m.code)}</span>
           </div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.7rem">
             ${[['Feb','feb','10% weight'],['Apr','apr','15% weight'],['Jun','jun','30% weight']].map(([label,key,hint])=>`
@@ -1533,12 +1603,12 @@ function renderEditMarks() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;margin-bottom:0.8rem">
         <div>
           <div style="font-size:0.5rem;color:var(--faint);margin-bottom:0.2rem">Program name</div>
-          <input type="text" id="em-prog" value="${USER_SETTINGS.program}"
+          <input type="text" id="em-prog" value="${esc(USER_SETTINGS.program)}"
             style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:8px;padding:0.5rem 0.65rem;color:#fff;font-size:0.65rem;outline:none;font-family:Inter,sans-serif"/>
         </div>
         <div>
           <div style="font-size:0.5rem;color:var(--faint);margin-bottom:0.2rem">Institution</div>
-          <input type="text" id="em-inst" value="${USER_SETTINGS.institution}"
+          <input type="text" id="em-inst" value="${esc(USER_SETTINGS.institution)}"
             style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:8px;padding:0.5rem 0.65rem;color:#fff;font-size:0.65rem;outline:none;font-family:Inter,sans-serif"/>
         </div>
       </div>
@@ -1683,7 +1753,7 @@ async function emScanMark(fileList) {
       <div style="font-size:0.54rem;color:var(--muted);margin:0.2rem 0 0.7rem">${note} — always verify against the actual script</div>
       <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
         <select id="em-scan-mod" style="flex:1;min-width:130px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:0.45rem 0.6rem;color:#fff;font-size:0.62rem;outline:none">
-          ${MODS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}
+          ${MODS.map(m=>`<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('')}
         </select>
         <button onclick="emApplyScan()" style="padding:0.5rem 0.9rem;background:rgba(255,255,255,0.92);border:none;border-radius:8px;color:#000;font-size:0.6rem;font-weight:700;cursor:pointer">Apply as Jun mark</button>
       </div>
@@ -1746,9 +1816,9 @@ function saveBackgroundSettings() {
     }
     localStorage.setItem('dashboardBgSettings', JSON.stringify(bgSettings));
     applyBackground(style);
-    alert('Background saved!');
+    showToast('Background saved.', 'ok');
   } catch (e) {
-    alert('Error saving background (storage limit may be exceeded for custom images)');
+    showToast('Could not save background — storage limit may be exceeded for custom images.', 'error');
   }
 }
 
@@ -1771,7 +1841,7 @@ function saveProgSettings() {
   if (d) { USER_SETTINGS.examDate = d + 'T08:00:00'; SEP_EXAM = new Date(USER_SETTINGS.examDate); }
   saveUserData();
   renderSidebar();
-  alert('Settings saved!');
+  showToast('Settings saved.', 'ok');
 }
 
 /* ─── LEGACY TEMPLATE (only used if user skips setup) ─── */
@@ -1941,7 +2011,7 @@ function renderSidebar() {
   document.getElementById('sidebar').innerHTML = `
     <div class="logo">
       <div class="logo-icon">TT</div>
-      <div><span class="logo-name">Term Tracker</span><span class="logo-sub">${USER_SETTINGS.institution || 'Academic Tracker'}</span></div>
+      <div><span class="logo-name">Term Tracker</span><span class="logo-sub">${esc(USER_SETTINGS.institution) || 'Academic Tracker'}</span></div>
     </div>
     <div class="nav-sec">Main</div>
     ${nb('overview','OV','Overview')}
@@ -1955,9 +2025,9 @@ function renderSidebar() {
       const c  = m.junStatus==='pass' ? '#4ade80' : m.junStatus==='fail' ? '#fb7185' : '#c084fc';
       const bg = m.junStatus==='pass' ? 'rgba(74,222,128,0.12)' : m.junStatus==='fail' ? 'rgba(251,113,133,0.12)' : 'rgba(192,132,252,0.12)';
       const badge = m.jun != null ? fmtMark(m.jun) : '—';
-      return `<button class="nav-btn ${currentTab===m.id.toLowerCase()?'active':''}" onclick="switchTab('${m.id.toLowerCase()}')" aria-label="${m.name}" aria-current="${currentTab===m.id.toLowerCase()?'page':'false'}">
+      return `<button class="nav-btn ${currentTab===m.id.toLowerCase()?'active':''}" onclick="switchTab('${esc(m.id.toLowerCase())}')" aria-label="${esc(m.name)}" aria-current="${currentTab===m.id.toLowerCase()?'page':'false'}">`;
         <span class="nav-icon"><span class="dot" style="background:${m.color};box-shadow:0 0 6px ${m.color}80"></span></span>
-        <span style="flex:1">${m.name.length>14?m.name.substring(0,12)+'…':m.name}</span>
+        <span style="flex:1">${esc(m.name.length>14?m.name.substring(0,12)+'…':m.name)}</span>
         <span class="mod-badge" style="color:${c};background:${bg};border:1px solid ${c}40;box-shadow:inset 0 1px 0 ${c}18">${badge}</span>
       </button>`;
     }).join('')}
@@ -1969,10 +2039,10 @@ function renderSidebar() {
         <span class="sb-stat-t">${passed} of ${MODS.length} passed</span>
         <span class="sb-stat-s">${failed>0?`${failed} module${failed>1?'s':''} need${failed===1?'s':''} focus`:'Keep it up!'}</span>
       </div>` : ''}
-      <button class="tt-account" onclick="ttSignOut()" title="Sign out" aria-label="Sign out of ${(USER_SETTINGS.name||'your account')}">
+      <button class="tt-account" onclick="ttSignOut()" title="Sign out" aria-label="Sign out of ${esc(USER_SETTINGS.name||'your account')}">
         <span class="tt-avatar">${ttInitials()}</span>
         <span class="tt-account-meta">
-          <span class="tt-account-name">${USER_SETTINGS.name || 'Your account'}</span>
+          <span class="tt-account-name">${esc(USER_SETTINGS.name) || 'Your account'}</span>
           <span class="tt-account-act">Sign out</span>
         </span>
         <svg class="tt-signout-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 14H3.5A1.5 1.5 0 0 1 2 12.5v-9A1.5 1.5 0 0 1 3.5 2H6"/><path d="M10.5 11 14 8l-3.5-3M14 8H6"/></svg>
@@ -2004,14 +2074,14 @@ function renderOverview() {
     {label:"Jun Average",val:avgJun!=null?f1(avgJun):'No data',c:cv(avgJun),s:cvS(avgJun),b:cvB(avgJun),sub:`${graded.length} of ${MODS.length} graded`,icon:"AVG"},
     {label:"Modules Passed",val:`${passed}/${MODS.length}`,c:passed>=MODS.length?"#4ade80":passed>0?"#fbbf24":"#fb7185",s:passed>=MODS.length?"rgba(74,222,128,0.10)":"rgba(251,191,36,0.10)",b:passed>=MODS.length?"rgba(74,222,128,0.24)":"rgba(251,191,36,0.24)",sub:"min. 50% per module",icon:"PAS"},
     {label:"HYM Average",val:avgHYM!=null?f1(avgHYM):'No data',c:cv(avgHYM),s:cvS(avgHYM),b:cvB(avgHYM),sub:"Feb · Apr · Jun",icon:"HYM"},
-    worst?{label:"Priority Module",val:worst.name.length>10?worst.name.substring(0,8)+'…':worst.name,c:"#fb7185",s:"rgba(251,113,133,0.10)",b:"rgba(251,113,133,0.24)",sub:`${f1(worst.jun)} · needs attention`,icon:"PRI"}:
+    worst?{label:"Priority Module",val:esc(worst.name.length>10?worst.name.substring(0,8)+'…':worst.name),c:"#fb7185",s:"rgba(251,113,133,0.10)",b:"rgba(251,113,133,0.24)",sub:`${f1(worst.jun)} · needs attention`,icon:"PRI"}:
           {label:"Priority Module",val:'—',c:"rgba(255,255,255,0.3)",s:"rgba(255,255,255,0.05)",b:"rgba(255,255,255,0.08)",sub:"No Jun marks yet",icon:"PRI"}
   ];
   return `
     <div class="ph">
-      <span class="ph-sup">${USER_SETTINGS.program}${USER_SETTINGS.institution?' · '+USER_SETTINGS.institution:''}</span>
+      <span class="ph-sup">${esc(USER_SETTINGS.program)}${USER_SETTINGS.institution?' · '+esc(USER_SETTINGS.institution):''}</span>
       <div class="ph-h1">${passed>0?`${passed} of ${MODS.length} passed`:graded.length>0?'Results pending':'Track your progress'}</div>
-      <span class="ph-sub">${USER_SETTINGS.name?USER_SETTINGS.name+' · ':''}${USER_SETTINGS.year?(/^\d$/.test(USER_SETTINGS.year)?'Year '+USER_SETTINGS.year:USER_SETTINGS.year)+' · ':''}Saved to your account</span>
+      <span class="ph-sub">${USER_SETTINGS.name?esc(USER_SETTINGS.name)+' · ':''}${USER_SETTINGS.year?esc(/^\d$/.test(USER_SETTINGS.year)?'Year '+USER_SETTINGS.year:USER_SETTINGS.year)+' · ':''}Saved to your account</span>
     </div>
 
     ${(USER_SETTINGS.hasExamData && USER_SETTINGS.examDate) ? `
@@ -2056,7 +2126,7 @@ function renderOverview() {
         <div class="slabel">Performance Trajectory</div>
         <div style="height:228px"><canvas id="perfChart"></canvas></div>
         <div class="chart-legend">
-          ${MODS.map(m=>`<div class="l-item"><span class="l-dot" style="background:${m.color};box-shadow:0 0 5px ${m.color}75"></span>${m.id} — ${m.name.split(' ')[0]}</div>`).join('')}
+          ${MODS.map(m=>`<div class="l-item"><span class="l-dot" style="background:${m.color};box-shadow:0 0 5px ${m.color}75"></span>${esc(m.id)} — ${esc(m.name.split(' ')[0])}</div>`).join('')}
           <span style="margin-left:auto;font-size:0.54rem;color:var(--faint)">— 50% pass line</span>
         </div>
       </div>
@@ -2067,7 +2137,7 @@ function renderOverview() {
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;position:relative;z-index:2">
               <div>
                 <span style="font-size:0.82rem;font-weight:700">${m.id}</span>
-                <span style="font-size:0.58rem;color:var(--faint);margin-left:0.38rem">${m.name.split(' ').slice(0,2).join(' ')}</span>
+                <span style="font-size:0.58rem;color:var(--faint);margin-left:0.38rem">${esc(m.name.split(' ').slice(0,2).join(' '))}</span>
               </div>
               <div style="text-align:right">
                 <div style="font-size:0.98rem;font-weight:800;color:${m.color};font-family:'JetBrains Mono',monospace;text-shadow:0 0 12px ${m.color}45">${m.junRaw}/120</div>
@@ -2221,12 +2291,12 @@ function buildInsights() {
     const topics = struggleTopics(m);
     const mark = m.jun;
     if (topics.length) {
-      out.push({marker:ini(m),mc:m.color,text:`<strong style="color:#fff">${m.name}</strong> — you flagged <em>${topics.join(', ')}</em>. Build a focused study block for each: work 2–3 past questions per topic and review the marking memo line-by-line. These feed your Flashcards deck.`});
+      out.push({marker:ini(m),mc:m.color,text:`<strong style="color:#fff">${esc(m.name)}</strong> — you flagged <em>${topics.map(esc).join(', ')}</em>. Build a focused study block for each: work 2–3 past questions per topic and review the marking memo line-by-line. These feed your Flashcards deck.`});
     }
     if (mark != null && mark < 50) {
-      out.push({marker:ini(m),mc:'#fb7185',text:`<strong style="color:#fff">${m.name}</strong> is sitting at <strong style="color:#fb7185">${f1(mark)}</strong> — your top priority. Aim to lift it above 50% by drilling your weakest sections first; small, consistent reps beat one long cram.`});
+      out.push({marker:ini(m),mc:'#fb7185',text:`<strong style="color:#fff">${esc(m.name)}</strong> is sitting at <strong style="color:#fb7185">${f1(mark)}</strong> — your top priority. Aim to lift it above 50% by drilling your weakest sections first; small, consistent reps beat one long cram.`});
     } else if (mark != null && mark < 60) {
-      out.push({marker:ini(m),mc:'#fbbf24',text:`<strong style="color:#fff">${m.name}</strong> at <strong style="color:#fbbf24">${f1(mark)}</strong> is a pass you should protect and grow. Tighten the sections you find shaky to push toward a comfortable margin.`});
+      out.push({marker:ini(m),mc:'#fbbf24',text:`<strong style="color:#fff">${esc(m.name)}</strong> at <strong style="color:#fbbf24">${f1(mark)}</strong> is a pass you should protect and grow. Tighten the sections you find shaky to push toward a comfortable margin.`});
     }
   });
   if (!out.length) {
@@ -2394,7 +2464,7 @@ function renderGrader() {
         ${aiOn
           ? `<div class="api-note" style="background:rgba(74,222,128,0.08);border-color:rgba(74,222,128,0.22);color:#86efac">Powered by Term Tracker AI — no API key needed. Marks are an AI estimate; always sanity-check them.</div>`
           : `<div class="api-note">The AI grader runs on the live Netlify deployment. It's switched off here because the AI service isn't configured on this host.</div>`}
-        <div class="g-group"><label class="g-label">Subject</label><select class="g-select" id="g-subj">${MODS.map(m=>`<option value="${m.id}">${m.id} — ${m.name}</option>`).join('')}</select></div>
+        <div class="g-group"><label class="g-label">Subject</label><select class="g-select" id="g-subj">${MODS.map(m=>`<option value="${esc(m.id)}">${esc(m.id)} — ${esc(m.name)}</option>`).join('')}</select></div>
         <div class="g-group"><label class="g-label">Question / Context</label><textarea class="g-ta" id="g-q" rows="4" placeholder="Paste the exam question or scenario here"></textarea></div>
         <div class="g-group"><label class="g-label">Memo / Model Answer <span class="opt">(optional)</span></label><textarea class="g-ta" id="g-memo" rows="4" placeholder="Paste the official memo solution"></textarea></div>
         <div class="g-group"><label class="g-label">Student Answer</label><textarea class="g-ta" id="g-ans" rows="6" placeholder="Paste the student answer here"></textarea></div>

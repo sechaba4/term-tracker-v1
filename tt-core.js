@@ -16,8 +16,8 @@
    1. Create a free project at https://supabase.com
    2. Project Settings → API → copy the "Project URL" and the "anon public" key
       into TT_CONFIG below.
-   3. In the Supabase SQL editor, run the schema in supabase-schema.sql
-      (shipped alongside this file).
+   3. In the Supabase SQL editor, run supabase-schema.sql (v2, normalized tables).
+      If upgrading from v1 (single JSONB blob), also run migrate-v2.sql.
    4. Authentication → Providers → Email: turn OFF "Confirm email" for the
       smoothest student sign-up (or leave on if you want verification).
    That's it — sign-ups now create real, retrievable accounts.
@@ -108,19 +108,37 @@ let TT_AI_ENABLED = false;  // set true once the config function reports an AI k
     return true;
   }
 
+  /* ── Input sanitizers — strip anything the DB constraints would reject ── */
+  function sanitizeText(v, maxLen) {
+    if (typeof v !== 'string') return '';
+    return v.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').slice(0, maxLen);
+  }
+  function sanitizeCode(v) {
+    if (typeof v !== 'string') return 'UNK';
+    return v.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 20) || 'UNK';
+  }
+  function sanitizeColor(v) {
+    if (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v)) return v;
+    return '#ffffff';
+  }
+  function sanitizeScore(v) {
+    const n = parseFloat(v);
+    if (isNaN(n) || n < 0) return null;
+    return Math.min(n, 100);
+  }
+  const VALID_ASSESSMENTS = new Set(['Feb','Apr','Jun','Sep']);
+
   const cloud = {
     async signUp({ firstName, lastName, email, password }) {
       const { data, error } = await sb.auth.signUp({
         email, password,
-        options: { data: { firstName, lastName } },
+        options: { data: { firstName: sanitizeText(firstName, 100), lastName: sanitizeText(lastName, 100) } },
       });
       if (error) throw new Error(error.message);
       const user = data.user;
       if (!user) throw new Error('Check your email to confirm your account, then sign in.');
       const u = { id: user.id, email, firstName, lastName };
       setCurrent(summary(u));
-      // seed an empty profile row
-      try { await sb.from('profiles').upsert({ id: user.id, data: {} }); } catch (e) {}
       return summary(u);
     },
     async signIn(email, password) {
@@ -132,16 +150,115 @@ let TT_AI_ENABLED = false;  // set true once the config function reports an AI k
       return summary(u);
     },
     async signOut() { try { await sb.auth.signOut(); } catch (e) {} setCurrent(null); },
+
+    /* ── loadProfile: read normalized tables → assemble the same shape
+       the frontend expects: { isSetup, modules: [...], settings: {...} } ── */
     async loadProfile() {
       const cur = lsGet(LS_CURRENT, null); if (!cur) return null;
-      const { data, error } = await sb.from('profiles').select('data').eq('id', cur.id).single();
-      if (error) return null;
-      return data ? data.data : null;
+      const uid = cur.id;
+
+      const [settingsRes, modulesRes, marksRes] = await Promise.all([
+        sb.from('user_settings').select('*').eq('user_id', uid).maybeSingle(),
+        sb.from('modules').select('*').eq('user_id', uid).order('sort_order'),
+        sb.from('marks').select('*').eq('user_id', uid),
+      ]);
+
+      // Fall back to legacy blob if normalized tables are empty (pre-migration)
+      if (!settingsRes.data && !modulesRes.data?.length) {
+        const legacy = await sb.from('profiles').select('data').eq('id', uid).maybeSingle();
+        if (legacy.data?.data?.isSetup) return legacy.data.data;
+        return null;
+      }
+
+      const s = settingsRes.data || {};
+      if (!s.is_setup) return null;
+
+      const marksByModule = {};
+      (marksRes.data || []).forEach(m => {
+        if (!marksByModule[m.module_id]) marksByModule[m.module_id] = [];
+        marksByModule[m.module_id].push({ assessment: m.assessment, score: parseFloat(m.score) });
+      });
+
+      const modules = (modulesRes.data || []).map(mod => ({
+        name: mod.name,
+        code: mod.code,
+        color: mod.color,
+        marks: marksByModule[mod.id] || [],
+        _id: mod.id,
+      }));
+
+      return {
+        isSetup: true,
+        modules,
+        settings: {
+          name: s.name || '',
+          program: s.program || 'PGDA',
+          institution: s.institution || '',
+          examDate: s.exam_date || '',
+          isSetup: true,
+        },
+      };
     },
+
+    /* ── saveProfile: decompose the frontend shape into normalized rows.
+       Uses upserts so it's safe to call repeatedly. Only writes diffs
+       where practical (marks are upserted individually, not bulk-replaced). ── */
     async saveProfile(obj) {
       const cur = lsGet(LS_CURRENT, null); if (!cur) return false;
-      const { error } = await sb.from('profiles').upsert({ id: cur.id, data: obj, updated_at: new Date().toISOString() });
-      return !error;
+      const uid = cur.id;
+      if (!obj) return false;
+
+      try {
+        // 1. User settings
+        const settings = obj.settings || {};
+        await sb.from('user_settings').upsert({
+          user_id:     uid,
+          name:        sanitizeText(settings.name, 200),
+          program:     sanitizeText(settings.program || 'PGDA', 100),
+          institution: sanitizeText(settings.institution, 200),
+          exam_date:   settings.examDate || null,
+          is_setup:    !!obj.isSetup,
+        }, { onConflict: 'user_id' });
+
+        // 2. Modules + marks
+        const modules = Array.isArray(obj.modules) ? obj.modules : [];
+        for (let i = 0; i < modules.length; i++) {
+          const mod = modules[i];
+          const code = sanitizeCode(mod.code);
+          const color = sanitizeColor(mod.color);
+          const name = sanitizeText(mod.name, 200) || code;
+
+          // Upsert the module row and get its id back
+          const { data: modRow } = await sb.from('modules').upsert({
+            user_id: uid,
+            name,
+            code,
+            color,
+            sort_order: i,
+          }, { onConflict: 'user_id,code' }).select('id').single();
+
+          if (!modRow) continue;
+          const moduleId = modRow.id;
+
+          // Upsert each mark
+          const marks = Array.isArray(mod.marks) ? mod.marks : [];
+          for (const mk of marks) {
+            if (!mk.assessment || !VALID_ASSESSMENTS.has(mk.assessment)) continue;
+            const score = sanitizeScore(mk.score);
+            await sb.from('marks').upsert({
+              module_id:  moduleId,
+              user_id:    uid,
+              assessment: mk.assessment,
+              score,
+            }, { onConflict: 'module_id,assessment' });
+          }
+        }
+
+        return true;
+      } catch (e) {
+        console.error('[TT] saveProfile error:', e);
+        return false;
+      }
     },
   };
 
@@ -207,7 +324,8 @@ let TT_AI_ENABLED = false;  // set true once the config function reports an AI k
         if (session && session.user) {
           const n = namesFromMeta(session.user.user_metadata, session.user.email);
           setCurrent(summary({ id: session.user.id, email: session.user.email, firstName: n.first, lastName: n.last }));
-          try { sb.from('profiles').upsert({ id: session.user.id, data: {} }, { ignoreDuplicates: true }); } catch (e) {}
+          // Seed a user_settings row (the trigger handles this too, but belt-and-suspenders)
+          sb.from('user_settings').upsert({ user_id: session.user.id }, { onConflict: 'user_id', ignoreDuplicates: true }).then(() => {});
         } else { setCurrent(null); }
         readyResolve(mode);
       });
