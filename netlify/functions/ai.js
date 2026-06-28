@@ -14,13 +14,41 @@
    ════════════════════════════════════════════════════════════════════ */
 
 const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
-const DEFAULT_MODEL = 'meta/llama-3.1-70b-instruct';
+// Cheapest capable default — small, fast, low-cost. Override with AI_MODEL env var.
+const DEFAULT_MODEL = 'meta/llama-3.1-8b-instruct';
 
-const json = (statusCode, obj) => ({
+const json = (statusCode, obj, extraHeaders) => ({
   statusCode,
-  headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+  headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...(extraHeaders || {}) },
   body: JSON.stringify(obj),
 });
+
+/* ──────────────────────────────────────────────────────────────────
+   Rate limiter — protects your NVIDIA key from runaway usage/cost.
+   In-memory per warm instance (free, no external store). Tunable via env:
+     RL_PER_MIN     max requests per IP per minute   (default 15)
+     RL_GLOBAL_MIN  max requests per instance/minute (default 60)
+   Note: limits are per function instance; for strict cross-instance
+   limits add a shared store (e.g. Upstash) later. This stops the common
+   abuse/runaway cases cheaply.
+   ────────────────────────────────────────────────────────────────── */
+const WINDOW_MS = 60000;
+const PER_IP_MAX  = parseInt(process.env.RL_PER_MIN || '15', 10);
+const GLOBAL_MAX  = parseInt(process.env.RL_GLOBAL_MIN || '60', 10);
+const hits = new Map();        // ip -> [timestamps]
+let globalHits = [];           // timestamps across all IPs
+
+function rateLimit(ip) {
+  const now = Date.now();
+  globalHits = globalHits.filter(t => now - t < WINDOW_MS);
+  if (globalHits.length >= GLOBAL_MAX) return { ok: false, retry: 60, scope: 'global' };
+  const arr = (hits.get(ip) || []).filter(t => now - t < WINDOW_MS);
+  if (arr.length >= PER_IP_MAX) { hits.set(ip, arr); return { ok: false, retry: 60, scope: 'ip' }; }
+  arr.push(now); hits.set(ip, arr); globalHits.push(now);
+  // opportunistic cleanup so the Map can't grow unbounded
+  if (hits.size > 5000) for (const [k, v] of hits) { if (!v.some(t => now - t < WINDOW_MS)) hits.delete(k); }
+  return { ok: true, remaining: PER_IP_MAX - arr.length };
+}
 
 function buildMessages(action, payload) {
   if (action === 'estimate-mark') {
@@ -75,6 +103,15 @@ exports.handler = async (event) => {
 
   const key = process.env.NVIDIA_API_KEY;
   if (!key) return json(503, { error: 'AI is not configured', aiEnabled: false });
+
+  // Throttle before spending any tokens
+  const h = event.headers || {};
+  const ip = (h['x-nf-client-connection-ip'] || (h['x-forwarded-for'] || '').split(',')[0] || 'unknown').trim();
+  const rl = rateLimit(ip);
+  if (!rl.ok) {
+    return json(429, { error: 'Too many requests — please slow down and try again shortly.', scope: rl.scope },
+      { 'Retry-After': String(rl.retry) });
+  }
 
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch (e) { return json(400, { error: 'Invalid JSON body' }); }
