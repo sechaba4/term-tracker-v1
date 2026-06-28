@@ -2381,23 +2381,25 @@ function refreshFlashcards(){ const el=document.getElementById('main'); if(el) e
 
 /* ─── GRADER ─── */
 function renderGrader() {
+  const aiOn = !!(window.TTAI && TTAI.enabled());
   return `
     <div class="ph">
-      <span class="ph-sup">AI-Powered · Strict CTA Marking</span>
+      <span class="ph-sup">AI-Powered · Strict Marking</span>
       <div class="ph-h1">Exam Grader</div>
-      <span class="ph-sub">Paste a question and student answer — graded against official CTA/PGDA memo standards</span>
+      <span class="ph-sub">Paste a question and student answer — graded against the memo or question intent</span>
     </div>
     <div class="grader-grid">
       <div class="glass g-form">
         <div class="shimmer"></div>
-        <div class="api-note">Calls Anthropic API directly. A CORS browser extension (e.g. "CORS Unblock") may be required.</div>
-        <div class="g-group"><label class="g-label">API Key</label><input type="password" class="g-input" id="g-key" placeholder="sk-ant-..."></div>
+        ${aiOn
+          ? `<div class="api-note" style="background:rgba(74,222,128,0.08);border-color:rgba(74,222,128,0.22);color:#86efac">Powered by Term Tracker AI — no API key needed. Marks are an AI estimate; always sanity-check them.</div>`
+          : `<div class="api-note">The AI grader runs on the live Netlify deployment. It's switched off here because the AI service isn't configured on this host.</div>`}
         <div class="g-group"><label class="g-label">Subject</label><select class="g-select" id="g-subj">${MODS.map(m=>`<option value="${m.id}">${m.id} — ${m.name}</option>`).join('')}</select></div>
         <div class="g-group"><label class="g-label">Question / Context</label><textarea class="g-ta" id="g-q" rows="4" placeholder="Paste the exam question or scenario here"></textarea></div>
         <div class="g-group"><label class="g-label">Memo / Model Answer <span class="opt">(optional)</span></label><textarea class="g-ta" id="g-memo" rows="4" placeholder="Paste the official memo solution"></textarea></div>
         <div class="g-group"><label class="g-label">Student Answer</label><textarea class="g-ta" id="g-ans" rows="6" placeholder="Paste the student answer here"></textarea></div>
         <div id="g-err" class="g-err" style="display:none"></div>
-        <button class="g-btn" id="g-btn" onclick="doGrade()">Grade Answer</button>
+        <button class="g-btn" id="g-btn" onclick="doGrade()" ${aiOn?'':'disabled title="Available on the live Netlify deployment"'}>Grade Answer</button>
       </div>
       <div id="g-result">
         <div class="glass r-empty"><div class="shimmer"></div>
@@ -2409,29 +2411,22 @@ function renderGrader() {
     </div>`;
 }
 
-/* ─── GRADE LOGIC ─── */
+/* ─── GRADE LOGIC (Term Tracker AI via Netlify function) ─── */
 async function doGrade() {
-  const key=document.getElementById('g-key').value.trim(),q=document.getElementById('g-q').value.trim(),
-        memo=document.getElementById('g-memo').value.trim(),ans=document.getElementById('g-ans').value.trim(),
+  const q=document.getElementById('g-q').value.trim(),
+        memo=document.getElementById('g-memo').value.trim(),
+        ans=document.getElementById('g-ans').value.trim(),
         subj=document.getElementById('g-subj').value,errEl=document.getElementById('g-err');
-  if(!key){errEl.textContent='Enter your Anthropic API key.';errEl.style.display='block';return;}
-  if(!q||!ans){errEl.textContent='Provide question context and student answer.';errEl.style.display='block';return;}
+  if(!(window.TTAI && TTAI.enabled())){errEl.textContent='The AI grader is only available on the live Netlify deployment (where the AI service is configured).';errEl.style.display='block';return;}
+  if(!q||!ans){errEl.textContent='Provide the question context and the student answer.';errEl.style.display='block';return;}
   errEl.style.display='none';
   const btn=document.getElementById('g-btn');
-  btn.disabled=true;btn.textContent='Marking...';
-  document.getElementById('g-result').innerHTML=`<div class="glass r-empty"><div class="shimmer"></div><span class="r-empty-t">Marking against memo...</span></div>`;
+  btn.disabled=true;btn.textContent='Marking…';
+  document.getElementById('g-result').innerHTML=`<div class="glass r-empty"><div class="shimmer"></div><span class="r-empty-t">Marking against the memo…</span></div>`;
   try{
     const subjName=MODS.find(m=>m.id===subj)?.name||subj;
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,
-        system:`You are a strict academic exam marker for the ${USER_SETTINGS.program||'academic'} program. Grade objectively against the provided mark scheme or question intent. Return ONLY valid JSON — no markdown:\n{"totalEarned":number,"totalAvailable":number,"percentage":number,"grade":"Pass"|"Fail","items":[{"criterion":string,"awarded":number,"available":number,"comment":string}],"summary":string,"fixes":[string]}`,
-        messages:[{role:'user',content:`Subject: ${subjName}\n\nQUESTION:\n${q}\n\n${memo?`MEMO:\n${memo}\n\n`:''}STUDENT ANSWER:\n${ans}\n\nMark strictly.`}]})
-    });
-    if(!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-    const data=await res.json();
-    const r=JSON.parse((data.content?.find(b=>b.type==='text')?.text||'').replace(/```(?:json)?/gi,'').trim());
+    const r=await TTAI.call('grade',{subject:subjName,question:q,memo,answer:ans,program:USER_SETTINGS.program||'academic'});
+    if(typeof r.totalEarned!=='number'||typeof r.percentage!=='number') throw new Error('The marker returned an unexpected response — try again.');
     const pct=r.percentage,col=cv(pct);
     document.getElementById('g-result').innerHTML=`<div class="glass" style="padding:1.5rem"><div class="shimmer"></div>
       <div class="r-header"><div><span class="r-score" style="color:${col};text-shadow:0 0 20px ${col}40">${r.totalEarned}/${r.totalAvailable}</span><span class="r-pct">${pct?.toFixed(1)}%</span></div>${pill(r.grade?.toLowerCase()||'fail')}</div>
@@ -2440,7 +2435,7 @@ async function doGrade() {
       ${r.fixes?.length?`<div class="r-fixes-t">Priority Fixes</div>${r.fixes.map(f=>`<div class="r-fix"><span class="r-fix-arr">&#8594;</span><span class="r-fix-txt">${f}</span></div>`).join('')}`:''}</div>`;
   }catch(e){
     errEl.textContent='Grading error: '+e.message;errEl.style.display='block';
-    document.getElementById('g-result').innerHTML=`<div class="glass r-empty"><div class="shimmer"></div><span class="r-empty-t">Grading failed</span><span class="r-empty-s">Check API key and CORS settings</span></div>`;
+    document.getElementById('g-result').innerHTML=`<div class="glass r-empty"><div class="shimmer"></div><span class="r-empty-t">Grading failed</span><span class="r-empty-s">${e.message}</span></div>`;
   }
   btn.disabled=false;btn.textContent='Grade Answer';
 }

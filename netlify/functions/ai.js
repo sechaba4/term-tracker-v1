@@ -72,6 +72,23 @@ function buildMessages(action, payload) {
       { role: 'user', content: 'Student context:\n' + JSON.stringify(p).slice(0, 6000) },
     ];
   }
+  if (action === 'grade') {
+    const p = payload || {};
+    return [
+      { role: 'system', content:
+        `You are a strict but fair university exam marker${p.program ? ' for the ' + p.program + ' programme' : ''}. ` +
+        'Grade the STUDENT ANSWER against the MEMO if given, otherwise against the QUESTION intent and standard marking conventions. ' +
+        'Award marks per distinct criterion and be specific about what was missed. ' +
+        'Reply with STRICT JSON only, no prose: ' +
+        '{"totalEarned": <number>, "totalAvailable": <number>, "percentage": <number 0-100>, ' +
+        '"grade": "Pass"|"Fail", "items": [{"criterion": <string>, "awarded": <number>, "available": <number>, "comment": <string>}], ' +
+        '"summary": <string>, "fixes": [<string>, ...]}.' },
+      { role: 'user', content:
+        `Subject: ${(p.subject || '').slice(0,160)}\n\nQUESTION:\n${(p.question || '').slice(0,6000)}\n\n` +
+        (p.memo ? `MEMO:\n${(p.memo).slice(0,6000)}\n\n` : '') +
+        `STUDENT ANSWER:\n${(p.answer || '').slice(0,8000)}\n\nMark strictly and return the JSON.` },
+    ];
+  }
   if (action === 'flashcards') {
     const topic = (payload.topic || '').slice(0, 200);
     const module = (payload.module || '').slice(0, 120);
@@ -127,9 +144,9 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         model,
         messages,
-        temperature: action === 'estimate-mark' ? 0.1 : 0.5,
+        temperature: (action === 'estimate-mark' || action === 'grade') ? 0.1 : 0.5,
         top_p: 0.9,
-        max_tokens: 900,
+        max_tokens: action === 'grade' ? 1400 : action === 'estimate-mark' ? 300 : 900,
       }),
     });
     if (!resp.ok) {
