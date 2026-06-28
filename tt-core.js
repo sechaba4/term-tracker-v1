@@ -157,10 +157,11 @@ let TT_AI_ENABLED = false;  // set true once the config function reports an AI k
       const cur = lsGet(LS_CURRENT, null); if (!cur) return null;
       const uid = cur.id;
 
-      const [settingsRes, modulesRes, marksRes] = await Promise.all([
+      const [settingsRes, modulesRes, marksRes, notesRes] = await Promise.all([
         sb.from('user_settings').select('*').eq('user_id', uid).maybeSingle(),
         sb.from('modules').select('*').eq('user_id', uid).order('sort_order'),
         sb.from('marks').select('*').eq('user_id', uid),
+        sb.from('notes').select('module_code,content').eq('user_id', uid),
       ]);
 
       // Fall back to legacy blob if normalized tables are empty (pre-migration)
@@ -179,13 +180,23 @@ let TT_AI_ENABLED = false;  // set true once the config function reports an AI k
         marksByModule[m.module_id].push({ assessment: m.assessment, score: parseFloat(m.score) });
       });
 
-      const modules = (modulesRes.data || []).map(mod => ({
-        name: mod.name,
-        code: mod.code,
-        color: mod.color,
-        marks: marksByModule[mod.id] || [],
-        _id: mod.id,
-      }));
+      const notesByCode = {};
+      (notesRes.data || []).forEach(n => {
+        try { notesByCode[n.module_code] = JSON.parse(n.content); } catch (e) {}
+      });
+
+      const modules = (modulesRes.data || []).map(mod => {
+        const nd = notesByCode[mod.code] || {};
+        return {
+          name: mod.name,
+          code: mod.code,
+          color: mod.color,
+          marks: marksByModule[mod.id] || [],
+          _id: mod.id,
+          breakdown: Array.isArray(nd.breakdown) ? nd.breakdown : [],
+          priorities: Array.isArray(nd.priorities) ? nd.priorities : [],
+        };
+      });
 
       return {
         isSetup: true,
@@ -252,6 +263,18 @@ let TT_AI_ENABLED = false;  // set true once the config function reports an AI k
               score,
             }, { onConflict: 'module_id,assessment' });
           }
+
+          // Save breakdown + priority data to the notes table (JSON per module)
+          const bd = Array.isArray(mod.breakdown) ? mod.breakdown : [];
+          const pr = Array.isArray(mod.priorities) ? mod.priorities : [];
+          if (bd.length || pr.length) {
+            const noteContent = JSON.stringify({ breakdown: bd.slice(0, 30), priorities: pr.slice(0, 15) });
+            await sb.from('notes').upsert({
+              user_id: uid,
+              module_code: code,
+              content: noteContent.slice(0, 10000),
+            }, { onConflict: 'user_id,module_code' });
+          }
         }
 
         return true;
@@ -259,6 +282,70 @@ let TT_AI_ENABLED = false;  // set true once the config function reports an AI k
         console.error('[TT] saveProfile error:', e);
         return false;
       }
+    },
+
+    /* ── Schedule progress: sync completed weeks to schedule_progress table ── */
+    async loadSchedule() {
+      const cur = lsGet(LS_CURRENT, null); if (!cur) return {};
+      const { data } = await sb.from('schedule_progress').select('week_id').eq('user_id', cur.id).eq('completed', true);
+      const map = {};
+      (data || []).forEach(r => { map[r.week_id] = true; });
+      return map;
+    },
+    async saveScheduleToggle(weekId, completed) {
+      const cur = lsGet(LS_CURRENT, null); if (!cur) return;
+      if (completed) {
+        await sb.from('schedule_progress').upsert({
+          user_id: cur.id, week_id: sanitizeText(weekId, 50), period_id: 'main',
+          completed: true, completed_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,week_id,period_id' });
+      } else {
+        await sb.from('schedule_progress').delete()
+          .eq('user_id', cur.id).eq('week_id', weekId).eq('period_id', 'main');
+      }
+    },
+
+    /* ── Task tracker: sync completed tasks to tasks table ── */
+    async loadTasks() {
+      const cur = lsGet(LS_CURRENT, null); if (!cur) return {};
+      const { data } = await sb.from('tasks').select('description').eq('user_id', cur.id).eq('completed', true);
+      const map = {};
+      (data || []).forEach(r => { map[r.description] = true; });
+      return map;
+    },
+    async saveTaskToggle(taskId, completed, meta) {
+      const cur = lsGet(LS_CURRENT, null); if (!cur) return;
+      const modCode = sanitizeCode((meta && meta.mod) || 'all');
+      const week = sanitizeText((meta && meta.week) || '', 50);
+      if (completed) {
+        await sb.from('tasks').upsert({
+          user_id: cur.id, module_code: modCode, week: week,
+          description: sanitizeText(taskId, 1000),
+          completed: true, completed_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,module_code,week,description' });
+      } else {
+        await sb.from('tasks').delete()
+          .eq('user_id', cur.id).eq('description', taskId);
+      }
+    },
+
+    /* ── Notes: per-module scratchpad (also used for breakdown/priority JSON) ── */
+    async loadNotes() {
+      const cur = lsGet(LS_CURRENT, null); if (!cur) return {};
+      const { data } = await sb.from('notes').select('module_code,content').eq('user_id', cur.id);
+      const map = {};
+      (data || []).forEach(r => {
+        try { map[r.module_code] = JSON.parse(r.content); } catch (e) { map[r.module_code] = r.content; }
+      });
+      return map;
+    },
+    async saveNote(moduleCode, content) {
+      const cur = lsGet(LS_CURRENT, null); if (!cur) return;
+      await sb.from('notes').upsert({
+        user_id: cur.id,
+        module_code: sanitizeCode(moduleCode),
+        content: (typeof content === 'string' ? content : JSON.stringify(content)).slice(0, 10000),
+      }, { onConflict: 'user_id,module_code' });
     },
   };
 
@@ -287,6 +374,21 @@ let TT_AI_ENABLED = false;  // set true once the config function reports an AI k
     async signOut() { try { localStorage.removeItem(LS_SESSION); } catch (e) {} setCurrent(null); },
     async loadProfile() { const cur = lsGet(LS_CURRENT, null); return cur ? lsGet(LS_PROFILE + cur.id, null) : null; },
     async saveProfile(obj) { const cur = lsGet(LS_CURRENT, null); if (!cur) return false; lsSet(LS_PROFILE + cur.id, obj); return true; },
+
+    async loadSchedule() { return lsGet('cta_sched_v2', {}); },
+    async saveScheduleToggle(weekId, completed) {
+      const s = lsGet('cta_sched_v2', {});
+      if (completed) s[weekId] = true; else delete s[weekId];
+      lsSet('cta_sched_v2', s);
+    },
+    async loadTasks() { return lsGet('ujCTAProgress_v2', {}); },
+    async saveTaskToggle(taskId, completed) {
+      const s = lsGet('ujCTAProgress_v2', {});
+      if (completed) s[taskId] = true; else delete s[taskId];
+      lsSet('ujCTAProgress_v2', s);
+    },
+    async loadNotes() { return {}; },
+    async saveNote() {},
   };
 
   /* ════════════════ PUBLIC API ════════════════ */
@@ -364,6 +466,12 @@ let TT_AI_ENABLED = false;  // set true once the config function reports an AI k
   const TTStore = {
     loadProfile()   { return impl.loadProfile(); },
     saveProfile(o)  { return impl.saveProfile(o); },
+    loadSchedule()  { return impl.loadSchedule(); },
+    saveScheduleToggle(id, done, meta) { return impl.saveScheduleToggle(id, done, meta); },
+    loadTasks()     { return impl.loadTasks(); },
+    saveTaskToggle(id, done, meta)     { return impl.saveTaskToggle(id, done, meta); },
+    loadNotes()     { return impl.loadNotes(); },
+    saveNote(code, content) { return impl.saveNote(code, content); },
   };
 
   /* AI client — talks to the Netlify function (key stays server-side). */

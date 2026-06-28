@@ -1102,6 +1102,13 @@ async function hydrateFromAccount() {
   if (p && p.isSetup && Array.isArray(p.modules) && p.modules.length > 0) {
     MODS = p.modules;
     USER_SETTINGS = { ...USER_SETTINGS, ...p.settings };
+    if (window.TTStore && TTStore.loadSchedule) {
+      try {
+        const [sched, tasks] = await Promise.all([TTStore.loadSchedule(), TTStore.loadTasks()]);
+        if (sched && Object.keys(sched).length) localStorage.setItem('cta_sched_v2', JSON.stringify(sched));
+        if (tasks && Object.keys(tasks).length) localStorage.setItem('ujCTAProgress_v2', JSON.stringify(tasks));
+      } catch(e) { console.error('[TT] Schedule/task hydrate:', e); }
+    }
     return true;
   }
   return false;
@@ -2025,7 +2032,7 @@ function renderSidebar() {
       const c  = m.junStatus==='pass' ? '#4ade80' : m.junStatus==='fail' ? '#fb7185' : '#c084fc';
       const bg = m.junStatus==='pass' ? 'rgba(74,222,128,0.12)' : m.junStatus==='fail' ? 'rgba(251,113,133,0.12)' : 'rgba(192,132,252,0.12)';
       const badge = m.jun != null ? fmtMark(m.jun) : '—';
-      return `<button class="nav-btn ${currentTab===m.id.toLowerCase()?'active':''}" onclick="switchTab('${esc(m.id.toLowerCase())}')" aria-label="${esc(m.name)}" aria-current="${currentTab===m.id.toLowerCase()?'page':'false'}">`;
+      return `<button class="nav-btn ${currentTab===m.id.toLowerCase()?'active':''}" onclick="switchTab('${esc(m.id.toLowerCase())}')" aria-label="${esc(m.name)}" aria-current="${currentTab===m.id.toLowerCase()?'page':'false'}">
         <span class="nav-icon"><span class="dot" style="background:${m.color};box-shadow:0 0 6px ${m.color}80"></span></span>
         <span style="flex:1">${esc(m.name.length>14?m.name.substring(0,12)+'…':m.name)}</span>
         <span class="mod-badge" style="color:${c};background:${bg};border:1px solid ${c}40;box-shadow:inset 0 1px 0 ${c}18">${badge}</span>
@@ -2833,8 +2840,12 @@ function toggleWeek(id){
   const LS_KEY='cta_sched_v2';
   let done={};
   try{done=JSON.parse(localStorage.getItem(LS_KEY)||'{}');}catch(e){}
-  if(done[id]) delete done[id]; else done[id]=true;
+  const nowDone = !done[id];
+  if(nowDone) done[id]=true; else delete done[id];
   localStorage.setItem(LS_KEY,JSON.stringify(done));
+  if(window.TTStore && TTStore.saveScheduleToggle){
+    TTStore.saveScheduleToggle(id, nowDone).catch(e=>console.error('[TT] Schedule sync:', e));
+  }
   switchTab('schedule');
 }
 
@@ -3027,7 +3038,7 @@ function renderTracker() {
         const tc = typeC[task.type]||'#fff';
         const tbg= typeBg[task.type]||'rgba(255,255,255,0.1)';
         return `
-        <div onclick="toggleTask('${task.id}')" style="display:flex;align-items:flex-start;gap:0.7rem;padding:0.7rem 0.75rem;background:${task.completed?'rgba(74,222,128,0.05)':'rgba(255,255,255,0.02)'};border-radius:10px;border-left:2.5px solid ${task.completed?'#4ade80':mc};margin-bottom:0.4rem;cursor:pointer;transition:background 0.2s;${task.completed?'opacity:0.55':''}">
+        <div onclick="toggleTask('${task.id}','${task.mod}','${week.weekNumber}')" style="display:flex;align-items:flex-start;gap:0.7rem;padding:0.7rem 0.75rem;background:${task.completed?'rgba(74,222,128,0.05)':'rgba(255,255,255,0.02)'};border-radius:10px;border-left:2.5px solid ${task.completed?'#4ade80':mc};margin-bottom:0.4rem;cursor:pointer;transition:background 0.2s;${task.completed?'opacity:0.55':''}">
           <div style="width:18px;height:18px;border-radius:5px;border:1.5px solid ${task.completed?'#4ade80':'rgba(255,255,255,0.2)'};background:${task.completed?'#4ade80':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">
             ${task.completed?'<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="#000" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
           </div>
@@ -3101,12 +3112,16 @@ function renderTracker() {
   `;
 }
 
-function toggleTask(id){
+function toggleTask(id, mod, week){
   const LS_KEY='ujCTAProgress_v2';
   let s={};
   try{s=JSON.parse(localStorage.getItem(LS_KEY)||'{}');}catch(e){}
-  if(s[id]) delete s[id]; else s[id]=true;
+  const nowDone = !s[id];
+  if(nowDone) s[id]=true; else delete s[id];
   localStorage.setItem(LS_KEY,JSON.stringify(s));
+  if(window.TTStore && TTStore.saveTaskToggle){
+    TTStore.saveTaskToggle(id, nowDone, {mod: mod||'all', week: week||''}).catch(e=>console.error('[TT] Task sync:', e));
+  }
   switchTab('tracker');
 }
 
