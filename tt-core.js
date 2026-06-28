@@ -37,9 +37,14 @@
    ════════════════════════════════════════════════════════════════════ */
 
 const TT_CONFIG = {
-  SUPABASE_URL:      '',   // e.g. 'https://abcdxyz.supabase.co'
-  SUPABASE_ANON_KEY: '',   // e.g. 'eyJhbGciOi...'
+  // Project URL is public; pre-filled for this project. The anon/publishable key
+  // and AI flag are loaded at runtime from /.netlify/functions/config on Netlify
+  // (so no keys live in this file). On GitHub Pages / file://, that fetch simply
+  // fails and the app falls back to localStorage mode.
+  SUPABASE_URL:      'https://iswkwmoatnhkirebkpzi.supabase.co',
+  SUPABASE_ANON_KEY: '',   // filled from the config function, or paste your anon key here for non-Netlify hosts
 };
+let TT_AI_ENABLED = false;  // set true once the config function reports an AI key is present
 
 (function (global) {
   'use strict';
@@ -49,7 +54,7 @@ const TT_CONFIG = {
   const LS_CURRENT = 'tt_current';   // cached current-user summary (both modes)
   const LS_PROFILE = 'tt_profile_';  // local fallback: per-user profile blob
 
-  const hasCloud = !!(TT_CONFIG.SUPABASE_URL && TT_CONFIG.SUPABASE_ANON_KEY);
+  const hasCloud = () => !!(TT_CONFIG.SUPABASE_URL && TT_CONFIG.SUPABASE_ANON_KEY);
   let sb = null;            // supabase client (cloud mode)
   let readyResolve;
   const ready = new Promise(r => { readyResolve = r; });
@@ -171,27 +176,44 @@ const TT_CONFIG = {
   let impl = local;          // default until init resolves
   let mode = 'local';
 
-  function boot() {
-    if (hasCloud && initCloud()) {
+  // Pull public runtime config (Supabase anon key + AI flag) from the Netlify
+  // function. Silently ignored off-Netlify (GitHub Pages / file://) where it 404s.
+  async function loadRuntimeConfig() {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 2500);
+      const r = await fetch('/.netlify/functions/config', { signal: ctrl.signal });
+      clearTimeout(t);
+      if (!r.ok) return;
+      const cfg = await r.json();
+      if (cfg.supabaseUrl)     TT_CONFIG.SUPABASE_URL = cfg.supabaseUrl;
+      if (cfg.supabaseAnonKey) TT_CONFIG.SUPABASE_ANON_KEY = cfg.supabaseAnonKey;
+      global.TT_AI_ENABLED = !!cfg.aiEnabled;
+    } catch (e) { /* offline / not on Netlify — fall back to local */ }
+  }
+
+  function startLocal() {
+    impl = local; mode = 'local';
+    const sid = lsGet(LS_SESSION, null);
+    if (sid) { const rec = lsGet(LS_USERS, []).find(u => u.id === sid); setCurrent(rec ? summary(rec) : null); }
+    readyResolve(mode);
+  }
+
+  async function boot() {
+    await loadRuntimeConfig();
+    if (hasCloud() && initCloud()) {
       impl = cloud; mode = 'cloud';
-      // keep cached current-user fresh across tabs/sessions
       sb.auth.onAuthStateChange((_evt, session) => {
         if (session && session.user) {
           const n = namesFromMeta(session.user.user_metadata, session.user.email);
           setCurrent(summary({ id: session.user.id, email: session.user.email, firstName: n.first, lastName: n.last }));
-          // ensure a profile row exists for OAuth (Google) users
           try { sb.from('profiles').upsert({ id: session.user.id, data: {} }, { ignoreDuplicates: true }); } catch (e) {}
         } else { setCurrent(null); }
         readyResolve(mode);
       });
-      // resolve even if no event fires shortly
       setTimeout(() => readyResolve(mode), 400);
     } else {
-      impl = local; mode = 'local';
-      // restore local session into the cached summary
-      const sid = lsGet(LS_SESSION, null);
-      if (sid) { const rec = lsGet(LS_USERS, []).find(u => u.id === sid); setCurrent(rec ? summary(rec) : null); }
-      readyResolve(mode);
+      startLocal();
     }
   }
 
@@ -226,8 +248,23 @@ const TT_CONFIG = {
     saveProfile(o)  { return impl.saveProfile(o); },
   };
 
+  /* AI client — talks to the Netlify function (key stays server-side). */
+  const TTAI = {
+    enabled() { return !!global.TT_AI_ENABLED; },
+    async call(action, payload) {
+      const r = await fetch('/.netlify/functions/ai', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action, payload }),
+      });
+      if (!r.ok) { const t = await r.text().catch(()=>'' ); throw new Error('AI unavailable (' + r.status + ') ' + t.slice(0,120)); }
+      return r.json();
+    },
+  };
+
   global.TTAuth  = TTAuth;
   global.TTStore = TTStore;
+  global.TTAI    = TTAI;
   global.TT_MODE = () => mode;
 
   boot();

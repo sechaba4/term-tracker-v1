@@ -3,3 +3,8 @@
 node_modules/
 .DS_Store
 Thumbs.db
+# Never commit secrets — set these in the Netlify dashboard instead
+.env
+.env.*
+!.env.example
+.netlify/

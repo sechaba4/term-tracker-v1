@@ -1,0 +1,110 @@
+/* ════════════════════════════════════════════════════════════════════
+   TERM TRACKER — AI proxy (Netlify Function)
+
+   Runs server-side on Netlify. The NVIDIA API key lives ONLY in the
+   environment (Netlify → Site settings → Environment variables), never in
+   the browser. The front-end POSTs { action, payload } here.
+
+   Required env var:
+     NVIDIA_API_KEY   your NVIDIA build.nvidia.com key (nvapi-...)
+   Optional env var:
+     AI_MODEL         model id (default: meta/llama-3.1-70b-instruct)
+
+   Actions: "estimate-mark" | "tips" | "flashcards"
+   ════════════════════════════════════════════════════════════════════ */
+
+const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
+const DEFAULT_MODEL = 'meta/llama-3.1-70b-instruct';
+
+const json = (statusCode, obj) => ({
+  statusCode,
+  headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+  body: JSON.stringify(obj),
+});
+
+function buildMessages(action, payload) {
+  if (action === 'estimate-mark') {
+    const text = (payload.text || '').slice(0, 12000);
+    return [
+      { role: 'system', content:
+        'You are an experienced university exam marker. You receive raw text extracted from a student\'s marked or scanned script/answer. ' +
+        'Estimate the overall percentage mark (0-100) as best you can from totals like "68/100", "72%", per-question marks that sum up, or grade indicators. ' +
+        'If evidence is weak, lower your confidence. Reply with STRICT JSON only, no prose: ' +
+        '{"mark": <number 0-100>, "confidence": "low"|"medium"|"high", "reasoning": "<one short sentence>"}.' },
+      { role: 'user', content: 'Extracted script text:\n\n' + text },
+    ];
+  }
+  if (action === 'tips') {
+    const p = payload || {};
+    return [
+      { role: 'system', content:
+        'You are a supportive academic coach for a university student. Given their modules, current marks, the topics they say they struggle with, and upcoming assessments, ' +
+        'produce 3-5 specific, encouraging, actionable study tips. Reference their actual weak topics and marks. Keep each tip to 1-2 sentences. ' +
+        'Reply with STRICT JSON only: {"tips": [{"title": "<short>", "body": "<1-2 sentences>"}]}.' },
+      { role: 'user', content: 'Student context:\n' + JSON.stringify(p).slice(0, 6000) },
+    ];
+  }
+  if (action === 'flashcards') {
+    const topic = (payload.topic || '').slice(0, 200);
+    const module = (payload.module || '').slice(0, 120);
+    const n = Math.min(8, Math.max(3, +payload.count || 5));
+    return [
+      { role: 'system', content:
+        `You are a study-aid generator. Create ${n} active-recall flashcards for the given topic in the given module. ` +
+        'Each card: a focused question on the front, a concise correct answer on the back. ' +
+        'Reply with STRICT JSON only: {"cards": [{"front": "<question>", "back": "<answer>"}]}.' },
+      { role: 'user', content: `Module: ${module}\nTopic: ${topic}` },
+    ];
+  }
+  return null;
+}
+
+function extractJson(content) {
+  if (!content) return null;
+  // models sometimes wrap JSON in prose or ```json fences
+  const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced ? fenced[1] : content;
+  const start = candidate.indexOf('{');
+  const end = candidate.lastIndexOf('}');
+  if (start === -1 || end === -1) return null;
+  try { return JSON.parse(candidate.slice(start, end + 1)); } catch (e) { return null; }
+}
+
+exports.handler = async (event) => {
+  if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed' });
+
+  const key = process.env.NVIDIA_API_KEY;
+  if (!key) return json(503, { error: 'AI is not configured', aiEnabled: false });
+
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch (e) { return json(400, { error: 'Invalid JSON body' }); }
+  const { action, payload } = body;
+  const messages = buildMessages(action, payload || {});
+  if (!messages) return json(400, { error: 'Unknown action: ' + action });
+
+  const model = process.env.AI_MODEL || DEFAULT_MODEL;
+  try {
+    const resp = await fetch(NVIDIA_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: action === 'estimate-mark' ? 0.1 : 0.5,
+        top_p: 0.9,
+        max_tokens: 900,
+      }),
+    });
+    if (!resp.ok) {
+      const detail = await resp.text();
+      return json(502, { error: 'AI upstream error', status: resp.status, detail: detail.slice(0, 500) });
+    }
+    const data = await resp.json();
+    const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    const parsed = extractJson(content);
+    if (!parsed) return json(200, { ok: true, raw: content, parsed: null });
+    return json(200, { ok: true, ...parsed });
+  } catch (e) {
+    return json(500, { error: 'AI request failed', detail: String(e).slice(0, 300) });
+  }
+};

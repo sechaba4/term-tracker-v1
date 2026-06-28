@@ -1,10 +1,19 @@
 [build]
   publish = "."
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Front door: serve the Term Tracker landing at the root URL
+[[redirects]]
+  from = "/"
+  to = "/landing.html"
+  status = 200
 
 [[headers]]
   for = "/*"
   [headers.values]
-    X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
 
@@ -15,5 +24,11 @@
 
 [[headers]]
   for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# tt-core.js reads config at runtime — never cache it stale
+[[headers]]
+  for = "/tt-core.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"

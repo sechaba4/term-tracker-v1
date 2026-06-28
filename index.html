@@ -675,6 +675,7 @@ input[type="range"].sep-slider::-webkit-slider-thumb:hover {
   transition: box-shadow 0.22s cubic-bezier(0.23,1,0.32,1), transform 0.18s cubic-bezier(0.23,1,0.32,1), background 0.22s; letter-spacing: 0.01em;
 }
 .g-btn:hover { box-shadow: 0 12px 38px rgba(255,255,255,0.55), inset 0 1.5px 0 rgba(255,255,255,0.50); transform: translateY(-2px); }
+.g-btn:active { transform: translateY(0) scale(0.98); transition-duration: 0.1s; }
 .g-btn:active { transform: translateY(0) scale(0.985); box-shadow: 0 5px 18px rgba(255,255,255,0.3), inset 0 1.5px 0 rgba(255,255,255,0.42); transition-duration: 0.1s; }
 .g-btn:disabled { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.1); color: var(--muted); cursor: not-allowed; box-shadow: none; transform: none; }
 .g-err  { font-size: 0.67rem; color: #fb7185; margin-bottom: 0.72rem; }
@@ -1652,16 +1653,34 @@ async function emScanMark(fileList) {
   const res = document.getElementById('em-scan-result');
   const file = [...fileList][0];
   if (!file) return;
-  if (res) res.innerHTML = '<div style="font-size:0.6rem;color:var(--muted)">Reading script…</div>';
-  let est = null;
-  try { est = estimateMarkFromText(await ttPdfText(file)); } catch(e) {}
-  if (!est) { if (res) res.innerHTML = '<div style="font-size:0.6rem;color:var(--warn)">Couldn\'t find a clear total (like 68/100 or 72%) in that PDF. If it\'s a scanned image without text, the numbers can\'t be read on-device.</div>'; return; }
-  window._ttScanPct = Math.round(est.pct*10)/10;
+  let text = '';
+  try { text = await ttPdfText(file); } catch(e) {}
+  if (!text.trim()) { if (res) res.innerHTML = '<div style="font-size:0.6rem;color:var(--warn)">Couldn\'t read any text from that PDF. A purely scanned image (no text layer) can\'t be read without OCR.</div>'; return; }
+
+  let pct = null, source = '', note = '';
+  // Prefer the AI marker when it's available (Netlify); otherwise read totals on-device.
+  if (window.TTAI && TTAI.enabled()) {
+    if (res) res.innerHTML = '<div style="font-size:0.6rem;color:var(--muted)">AI is reading the script…</div>';
+    try {
+      const r = await TTAI.call('estimate-mark', { text });
+      if (r && typeof r.mark === 'number') { pct = r.mark; source = 'AI estimate'; note = (r.confidence?`${r.confidence} confidence — `:'') + (r.reasoning||''); }
+    } catch(e) { /* fall back below */ }
+  }
+  if (pct == null) {
+    if (res) res.innerHTML = '<div style="font-size:0.6rem;color:var(--muted)">Reading totals…</div>';
+    const est = estimateMarkFromText(text);
+    if (!est) { if (res) res.innerHTML = '<div style="font-size:0.6rem;color:var(--warn)">Couldn\'t find a clear total (like 68/100 or 72%). Try a clearer script, or enter the mark manually above.</div>'; return; }
+    pct = est.pct; source = 'On-device read'; note = 'found ' + est.raw;
+  }
+  window._ttScanPct = Math.max(0, Math.min(100, Math.round(pct*10)/10));
   if (res) res.innerHTML = `
     <div style="padding:0.85rem;border-radius:10px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.22)">
-      <div style="font-size:0.55rem;color:var(--faint);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.2rem">Estimated mark</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.2rem">
+        <span style="font-size:0.55rem;color:var(--faint);text-transform:uppercase;letter-spacing:0.06em">Estimated mark</span>
+        <span style="font-size:0.5rem;color:#86efac;font-weight:700;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.25);border-radius:5px;padding:0.1rem 0.4rem">${source}</span>
+      </div>
       <div style="font-family:var(--mono);font-size:1.6rem;font-weight:800;color:#86efac;line-height:1">${window._ttScanPct}%</div>
-      <div style="font-size:0.54rem;color:var(--muted);margin:0.2rem 0 0.7rem">read as ${est.raw} — verify against the actual script</div>
+      <div style="font-size:0.54rem;color:var(--muted);margin:0.2rem 0 0.7rem">${note} — always verify against the actual script</div>
       <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
         <select id="em-scan-mod" style="flex:1;min-width:130px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:0.45rem 0.6rem;color:#fff;font-size:0.62rem;outline:none">
           ${MODS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}
@@ -2225,12 +2244,35 @@ function renderInsights() {
       <div class="ph-h1">Tips & Insights</div>
       <span class="ph-sub">Built from the sections you struggle with, your marks, and your upcoming assessments</span>
     </div>
-    <div class="insights">
+    <div class="insights" id="insights-list">
+      <div id="ai-tips-slot"></div>
       ${items.map(it=>`<div class="insight" style="border-left-color:${it.mc}">
         <div class="insight-marker" style="background:${it.mc}18;border-color:${it.mc}35;color:${it.mc}">${it.marker}</div>
         <span class="insight-text">${it.text}</span>
       </div>`).join('')}
     </div>`;
+}
+/* Pull tailored AI tips from the Netlify function when available. */
+async function loadAITips() {
+  const slot = document.getElementById('ai-tips-slot');
+  if (!slot || !(window.TTAI && TTAI.enabled())) return;
+  slot.innerHTML = `<div class="insight" style="border-left-color:#c084fc"><div class="insight-marker" style="background:#c084fc18;border-color:#c084fc35;color:#c084fc">AI</div><span class="insight-text">Generating tips tailored to you…</span></div>`;
+  try {
+    const profile = {
+      year: USER_SETTINGS.year,
+      modules: MODS.map(m => ({ name: m.name, mark: m.jun, struggles: m.struggles || '' })),
+      upcoming: (USER_SETTINGS.timeline||[]).filter(a=>a.date && new Date(a.date)>=new Date())
+        .sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,3).map(a=>({name:a.name,date:a.date,weight:a.weight})),
+    };
+    const r = await TTAI.call('tips', profile);
+    const tips = (r && r.tips) || [];
+    if (!tips.length) { slot.innerHTML = ''; return; }
+    slot.innerHTML = tips.map((t,i)=>`
+      <div class="insight" style="border-left-color:#c084fc;animation:fcFade 0.3s ease ${i*60}ms both">
+        <div class="insight-marker" style="background:#c084fc18;border-color:#c084fc35;color:#c084fc">AI</div>
+        <span class="insight-text"><strong style="color:#fff">${t.title||'Tip'}</strong> — ${t.body||''}</span>
+      </div>`).join('');
+  } catch (e) { slot.innerHTML = ''; }
 }
 
 /* ─── FLASHCARDS (from struggle topics) ─── */
@@ -2984,6 +3026,7 @@ function switchTab(tab) {
     setTimeout(initChart,50);
     if(!window._cdInterval) window._cdInterval = setInterval(refreshCountdown, 1000);
   }
+  if(tab==='insights') setTimeout(loadAITips, 60);
   if(tab==='planner') setTimeout(()=>{
     const s=document.getElementById('sep-slider');
     if(s)s.addEventListener('input',e=>updateSep(+e.target.value));

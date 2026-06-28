@@ -201,31 +201,37 @@
       will-change:transform;
     }
     /* Main planet: continuous spin on a tilted axis (planet-like) */
-    .cube--planet { animation:cubeSpin 26s linear infinite; }
+    .cube--planet { animation:cubeSpin 22s linear infinite; }
     @keyframes cubeSpin {
       from { transform:rotateX(-24deg) rotateY(0deg) rotateZ(6deg); }
       to   { transform:rotateX(-24deg) rotateY(360deg) rotateZ(6deg); }
     }
+    .cube-scene::after {
+      /* soft halo so the planet reads against the black */
+      content:''; position:absolute; top:50%; left:50%; width:360px; height:360px;
+      transform:translate(-50%,-50%); border-radius:50%; z-index:-1; pointer-events:none;
+      background:radial-gradient(circle, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.02) 45%, transparent 70%);
+    }
     .face {
       position:absolute; top:50%; left:50%; width:200px; height:200px;
       margin:-100px 0 0 -100px;
-      border:1px solid rgba(255,255,255,0.16);
+      border:1px solid rgba(255,255,255,0.34);
       background:
-        linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.012) 60%, transparent 100%);
-      box-shadow:inset 0 0 38px rgba(255,255,255,0.05), inset 0 1px 0 rgba(255,255,255,0.18);
+        linear-gradient(135deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.05) 55%, rgba(255,255,255,0.02) 100%);
+      box-shadow:inset 0 0 48px rgba(255,255,255,0.10), inset 0 1.5px 0 rgba(255,255,255,0.42);
       backface-visibility:visible;
     }
     /* Inner grid lines on each face for a wireframe-planet read */
     .face::before {
       content:''; position:absolute; inset:0; pointer-events:none;
       background-image:
-        linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+        linear-gradient(rgba(255,255,255,0.13) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.13) 1px, transparent 1px);
       background-size:40px 40px;
     }
     .face::after {
       content:''; position:absolute; inset:14px; pointer-events:none;
-      border:1px solid rgba(255,255,255,0.06); border-radius:4px;
+      border:1px solid rgba(255,255,255,0.12); border-radius:4px;
     }
     .f-front  { transform:translateZ(100px); }
     .f-back   { transform:rotateY(180deg) translateZ(100px); }
