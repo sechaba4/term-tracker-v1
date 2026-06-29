@@ -16,8 +16,7 @@
    1. Create a free project at https://supabase.com
    2. Project Settings → API → copy the "Project URL" and the "anon public" key
       into TT_CONFIG below.
-   3. In the Supabase SQL editor, run supabase-schema.sql (v2, normalized tables).
-      If upgrading from v1 (single JSONB blob), also run migrate-v2.sql.
+   3. In the Supabase SQL editor, run supabase-schema.sql.
    4. Authentication → Providers → Email: turn OFF "Confirm email" for the
       smoothest student sign-up (or leave on if you want verification).
    That's it — sign-ups now create real, retrievable accounts.
@@ -42,7 +41,7 @@ const TT_CONFIG = {
   // (so no keys live in this file). On GitHub Pages / file://, that fetch simply
   // fails and the app falls back to localStorage mode.
   SUPABASE_URL:      'https://iswkwmoatnhkirebkpzi.supabase.co',
-  SUPABASE_ANON_KEY: '',   // filled from the config function, or paste your anon key here for non-Netlify hosts
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlzd2t3bW9hdG5oa2lyZWJrcHppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2MTAyMDIsImV4cCI6MjA5ODE4NjIwMn0.hE2CoIHlO9wM29uMyvA4mY1Ccig136hp9s6zpMegWYE',
 };
 let TT_AI_ENABLED = false;  // set true once the config function reports an AI key is present
 
@@ -151,137 +150,22 @@ let TT_AI_ENABLED = false;  // set true once the config function reports an AI k
     },
     async signOut() { try { await sb.auth.signOut(); } catch (e) {} setCurrent(null); },
 
-    /* ── loadProfile: read normalized tables → assemble the same shape
-       the frontend expects: { isSetup, modules: [...], settings: {...} } ── */
+    /* ── loadProfile / saveProfile: store the whole profile as one JSON
+       blob keyed by user id. This round-trips the app's exact data shape
+       (modules with feb/apr/jun + struggles + assessments, settings with
+       firstName/lastName/year/timeline/hasExamData/markFmt) losslessly. ── */
     async loadProfile() {
       const cur = lsGet(LS_CURRENT, null); if (!cur) return null;
-      const uid = cur.id;
-
-      const [settingsRes, modulesRes, marksRes, notesRes] = await Promise.all([
-        sb.from('user_settings').select('*').eq('user_id', uid).maybeSingle(),
-        sb.from('modules').select('*').eq('user_id', uid).order('sort_order'),
-        sb.from('marks').select('*').eq('user_id', uid),
-        sb.from('notes').select('module_code,content').eq('user_id', uid),
-      ]);
-
-      // Fall back to legacy blob if normalized tables are empty (pre-migration)
-      if (!settingsRes.data && !modulesRes.data?.length) {
-        const legacy = await sb.from('profiles').select('data').eq('id', uid).maybeSingle();
-        if (legacy.data?.data?.isSetup) return legacy.data.data;
-        return null;
-      }
-
-      const s = settingsRes.data || {};
-      if (!s.is_setup) return null;
-
-      const marksByModule = {};
-      (marksRes.data || []).forEach(m => {
-        if (!marksByModule[m.module_id]) marksByModule[m.module_id] = [];
-        marksByModule[m.module_id].push({ assessment: m.assessment, score: parseFloat(m.score) });
-      });
-
-      const notesByCode = {};
-      (notesRes.data || []).forEach(n => {
-        try { notesByCode[n.module_code] = JSON.parse(n.content); } catch (e) {}
-      });
-
-      const modules = (modulesRes.data || []).map(mod => {
-        const nd = notesByCode[mod.code] || {};
-        return {
-          name: mod.name,
-          code: mod.code,
-          color: mod.color,
-          marks: marksByModule[mod.id] || [],
-          _id: mod.id,
-          breakdown: Array.isArray(nd.breakdown) ? nd.breakdown : [],
-          priorities: Array.isArray(nd.priorities) ? nd.priorities : [],
-        };
-      });
-
-      return {
-        isSetup: true,
-        modules,
-        settings: {
-          name: s.name || '',
-          program: s.program || 'PGDA',
-          institution: s.institution || '',
-          examDate: s.exam_date || '',
-          isSetup: true,
-        },
-      };
+      const { data, error } = await sb.from('profiles').select('data').eq('id', cur.id).maybeSingle();
+      if (error || !data) return null;
+      return data.data || null;
     },
-
-    /* ── saveProfile: decompose the frontend shape into normalized rows.
-       Uses upserts so it's safe to call repeatedly. Only writes diffs
-       where practical (marks are upserted individually, not bulk-replaced). ── */
     async saveProfile(obj) {
       const cur = lsGet(LS_CURRENT, null); if (!cur) return false;
-      const uid = cur.id;
       if (!obj) return false;
-
-      try {
-        // 1. User settings
-        const settings = obj.settings || {};
-        await sb.from('user_settings').upsert({
-          user_id:     uid,
-          name:        sanitizeText(settings.name, 200),
-          program:     sanitizeText(settings.program || 'PGDA', 100),
-          institution: sanitizeText(settings.institution, 200),
-          exam_date:   settings.examDate || null,
-          is_setup:    !!obj.isSetup,
-        }, { onConflict: 'user_id' });
-
-        // 2. Modules + marks
-        const modules = Array.isArray(obj.modules) ? obj.modules : [];
-        for (let i = 0; i < modules.length; i++) {
-          const mod = modules[i];
-          const code = sanitizeCode(mod.code);
-          const color = sanitizeColor(mod.color);
-          const name = sanitizeText(mod.name, 200) || code;
-
-          // Upsert the module row and get its id back
-          const { data: modRow } = await sb.from('modules').upsert({
-            user_id: uid,
-            name,
-            code,
-            color,
-            sort_order: i,
-          }, { onConflict: 'user_id,code' }).select('id').single();
-
-          if (!modRow) continue;
-          const moduleId = modRow.id;
-
-          // Upsert each mark
-          const marks = Array.isArray(mod.marks) ? mod.marks : [];
-          for (const mk of marks) {
-            if (!mk.assessment || !VALID_ASSESSMENTS.has(mk.assessment)) continue;
-            const score = sanitizeScore(mk.score);
-            await sb.from('marks').upsert({
-              module_id:  moduleId,
-              user_id:    uid,
-              assessment: mk.assessment,
-              score,
-            }, { onConflict: 'module_id,assessment' });
-          }
-
-          // Save breakdown + priority data to the notes table (JSON per module)
-          const bd = Array.isArray(mod.breakdown) ? mod.breakdown : [];
-          const pr = Array.isArray(mod.priorities) ? mod.priorities : [];
-          if (bd.length || pr.length) {
-            const noteContent = JSON.stringify({ breakdown: bd.slice(0, 30), priorities: pr.slice(0, 15) });
-            await sb.from('notes').upsert({
-              user_id: uid,
-              module_code: code,
-              content: noteContent.slice(0, 10000),
-            }, { onConflict: 'user_id,module_code' });
-          }
-        }
-
-        return true;
-      } catch (e) {
-        console.error('[TT] saveProfile error:', e);
-        return false;
-      }
+      const { error } = await sb.from('profiles').upsert({ id: cur.id, data: obj, updated_at: new Date().toISOString() });
+      if (error) { console.error('[TT] saveProfile error:', error.message); return false; }
+      return true;
     },
 
     /* ── Schedule progress: sync completed weeks to schedule_progress table ── */
@@ -426,12 +310,13 @@ let TT_AI_ENABLED = false;  // set true once the config function reports an AI k
         if (session && session.user) {
           const n = namesFromMeta(session.user.user_metadata, session.user.email);
           setCurrent(summary({ id: session.user.id, email: session.user.email, firstName: n.first, lastName: n.last }));
-          // Seed a user_settings row (the trigger handles this too, but belt-and-suspenders)
           sb.from('user_settings').upsert({ user_id: session.user.id }, { onConflict: 'user_id', ignoreDuplicates: true }).then(() => {});
         } else { setCurrent(null); }
         readyResolve(mode);
       });
-      setTimeout(() => readyResolve(mode), 400);
+      // OAuth callbacks carry tokens in the hash — give Supabase time to process them
+      const isOAuth = location.hash.includes('access_token') || location.hash.includes('refresh_token');
+      setTimeout(() => readyResolve(mode), isOAuth ? 3000 : 400);
     } else {
       startLocal();
     }

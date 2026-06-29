@@ -589,19 +589,31 @@
     .auth-btn:active { transform:translateY(0) scale(0.98); transition-duration:0.1s; }
     .auth-btn:disabled { opacity:0.55; cursor:wait; transform:none; }
     .auth-google {
-      width:100%; padding:0.72rem; border-radius:11px; cursor:pointer;
-      display:flex; align-items:center; justify-content:center; gap:0.6rem;
-      background:rgba(255,255,255,0.06); color:#fff;
-      border:1px solid rgba(255,255,255,0.16); border-top-color:rgba(255,255,255,0.26);
-      font-family:var(--sans); font-size:0.82rem; font-weight:600;
-      box-shadow:inset 0 1px 0 rgba(255,255,255,0.12);
-      transition:background 0.2s var(--ease-soft), transform 0.16s, border-color 0.2s;
+      width:100%; padding:0.88rem 1rem; border-radius:12px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center; gap:0.7rem;
+      background:#fff; color:#1a1a1a;
+      border:none;
+      font-family:var(--sans); font-size:0.88rem; font-weight:700;
+      box-shadow:0 6px 24px rgba(255,255,255,0.14), inset 0 1.5px 0 rgba(255,255,255,1);
+      transition:transform 0.18s var(--ease), box-shadow 0.2s;
     }
-    .auth-google:hover { background:rgba(255,255,255,0.1); border-color:rgba(255,255,255,0.28); }
-    .auth-google:active { transform:scale(0.98); transition-duration:0.1s; }
-    .auth-google svg { width:17px; height:17px; flex-shrink:0; }
-    .auth-or { display:flex; align-items:center; gap:0.7rem; margin:1rem 0; color:var(--faint); font-size:0.56rem; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; }
+    .auth-google:hover { transform:translateY(-2px); box-shadow:0 12px 34px rgba(255,255,255,0.22); }
+    .auth-google:active { transform:translateY(0) scale(0.97); transition-duration:0.1s; }
+    .auth-google:disabled { opacity:0.55; cursor:wait; transform:none; }
+    .auth-google svg { width:18px; height:18px; flex-shrink:0; }
+    .auth-or { display:flex; align-items:center; gap:0.7rem; margin:1.1rem 0 0.2rem; color:var(--faint); font-size:0.56rem; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; }
     .auth-or::before, .auth-or::after { content:''; flex:1; height:1px; background:rgba(255,255,255,0.09); }
+    .auth-email-toggle {
+      width:100%; padding:0.6rem; border-radius:10px; cursor:pointer; margin-top:0.4rem;
+      display:flex; align-items:center; justify-content:center; gap:0.5rem;
+      background:transparent; color:var(--faint);
+      border:1px solid rgba(255,255,255,0.1);
+      font-family:var(--sans); font-size:0.72rem; font-weight:600;
+      transition:background 0.2s, color 0.2s, border-color 0.2s;
+    }
+    .auth-email-toggle:hover { background:rgba(255,255,255,0.06); color:#fff; border-color:rgba(255,255,255,0.2); }
+    .auth-email-section { display:none; animation:authFade 0.3s var(--ease); }
+    .auth-email-section.open { display:block; }
     .auth-msg { font-size:0.7rem; line-height:1.55; margin-top:0.85rem; min-height:1em; }
     .auth-msg.err { color:#fda4af; }
     .auth-msg.ok  { color:#86efac; }
@@ -1043,55 +1055,59 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38z"/></svg>
       Continue with Google
     </button>
-    <div class="auth-or">or</div>
-
-    <div class="auth-tabs" role="tablist">
-      <button type="button" class="auth-tab active" data-mode="signin" role="tab">Sign in</button>
-      <button type="button" class="auth-tab" data-mode="signup" role="tab">Create account</button>
-    </div>
-
-    <!-- Sign in -->
-    <div class="auth-pane active" id="pane-signin">
-      <form id="form-signin" novalidate>
-        <div class="auth-field">
-          <label for="si-email">Email</label>
-          <input id="si-email" name="email" type="email" autocomplete="email" placeholder="you@university.ac.za">
-        </div>
-        <div class="auth-field">
-          <label for="si-pass">Password</label>
-          <input id="si-pass" name="password" type="password" autocomplete="current-password" placeholder="••••••••">
-        </div>
-        <button type="submit" class="auth-btn">Sign in</button>
-      </form>
-    </div>
-
-    <!-- Sign up -->
-    <div class="auth-pane" id="pane-signup">
-      <form id="form-signup" novalidate>
-        <div class="auth-row">
-          <div class="auth-field">
-            <label for="su-first">Name</label>
-            <input id="su-first" name="firstName" type="text" autocomplete="given-name" placeholder="Sechaba">
-          </div>
-          <div class="auth-field">
-            <label for="su-last">Surname</label>
-            <input id="su-last" name="lastName" type="text" autocomplete="family-name" placeholder="Mashinini">
-          </div>
-        </div>
-        <div class="auth-field">
-          <label for="su-email">Email</label>
-          <input id="su-email" name="email" type="email" autocomplete="email" placeholder="you@university.ac.za">
-        </div>
-        <div class="auth-field">
-          <label for="su-pass">Password</label>
-          <input id="su-pass" name="password" type="password" autocomplete="new-password" placeholder="At least 6 characters">
-        </div>
-        <button type="submit" class="auth-btn">Create account</button>
-      </form>
-    </div>
 
     <div class="auth-msg" id="auth-msg" role="status" aria-live="polite"></div>
-    <p class="auth-mode-tip">You'll add your university, year of study and modules in the next step.</p>
+    <p class="auth-mode-tip">Sign in with your Google account — no passwords to remember, works across all your devices.</p>
+
+    <div class="auth-or">or</div>
+    <button type="button" class="auth-email-toggle" id="auth-email-toggle">Use email &amp; password instead</button>
+
+    <div class="auth-email-section" id="auth-email-section">
+      <div class="auth-tabs" role="tablist">
+        <button type="button" class="auth-tab active" data-mode="signin" role="tab">Sign in</button>
+        <button type="button" class="auth-tab" data-mode="signup" role="tab">Create account</button>
+      </div>
+
+      <!-- Sign in -->
+      <div class="auth-pane active" id="pane-signin">
+        <form id="form-signin" novalidate>
+          <div class="auth-field">
+            <label for="si-email">Email</label>
+            <input id="si-email" name="email" type="email" autocomplete="email" placeholder="you@university.ac.za">
+          </div>
+          <div class="auth-field">
+            <label for="si-pass">Password</label>
+            <input id="si-pass" name="password" type="password" autocomplete="current-password" placeholder="••••••••">
+          </div>
+          <button type="submit" class="auth-btn">Sign in</button>
+        </form>
+      </div>
+
+      <!-- Sign up -->
+      <div class="auth-pane" id="pane-signup">
+        <form id="form-signup" novalidate>
+          <div class="auth-row">
+            <div class="auth-field">
+              <label for="su-first">Name</label>
+              <input id="su-first" name="firstName" type="text" autocomplete="given-name" placeholder="Sechaba">
+            </div>
+            <div class="auth-field">
+              <label for="su-last">Surname</label>
+              <input id="su-last" name="lastName" type="text" autocomplete="family-name" placeholder="Mashinini">
+            </div>
+          </div>
+          <div class="auth-field">
+            <label for="su-email">Email</label>
+            <input id="su-email" name="email" type="email" autocomplete="email" placeholder="you@university.ac.za">
+          </div>
+          <div class="auth-field">
+            <label for="su-pass">Password</label>
+            <input id="su-pass" name="password" type="password" autocomplete="new-password" placeholder="At least 6 characters">
+          </div>
+          <button type="submit" class="auth-btn">Create account</button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1153,12 +1169,23 @@ setTimeout(() => {
 
   function showMsg(text, kind) { if (!msg) return; msg.textContent = text; msg.className = 'auth-msg ' + (kind || ''); }
 
+  /* Email toggle */
+  const emailToggle = document.getElementById('auth-email-toggle');
+  const emailSection = document.getElementById('auth-email-section');
+  if (emailToggle && emailSection) {
+    emailToggle.addEventListener('click', () => {
+      const open = emailSection.classList.toggle('open');
+      emailToggle.textContent = open ? 'Hide email sign-in' : 'Use email & password instead';
+      if (open) { const first = emailSection.querySelector('input'); if (first) setTimeout(() => first.focus(), 60); }
+    });
+  }
+
   /* Google OAuth */
   const gbtn = document.getElementById('auth-google');
   if (gbtn) gbtn.addEventListener('click', async () => {
     gbtn.disabled = true; showMsg('Redirecting to Google…', '');
     try {
-      await TTAuth.signInWithGoogle('index.html');   // Supabase redirects back signed in
+      await TTAuth.signInWithGoogle('index.html');
     } catch (err) {
       gbtn.disabled = false; showMsg(err.message || 'Google sign-in is unavailable.', 'err');
     }
