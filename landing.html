@@ -1158,6 +1158,20 @@ setTimeout(() => {
   }
   window.TTopenAuth = open;
 
+  // Rate limiter: max 5 auth attempts per 60s window
+  const _attempts = { count: 0, resetAt: 0 };
+  function checkRateLimit() {
+    const now = Date.now();
+    if (now > _attempts.resetAt) { _attempts.count = 0; _attempts.resetAt = now + 60000; }
+    _attempts.count++;
+    if (_attempts.count > 5) {
+      const wait = Math.ceil((_attempts.resetAt - now) / 1000);
+      showMsg(`Too many attempts. Please wait ${wait} seconds before trying again.`, 'err');
+      return false;
+    }
+    return true;
+  }
+
   // Triggers
   document.querySelectorAll('[data-auth]').forEach(btn => {
     btn.addEventListener('click', e => { e.preventDefault(); open(btn.dataset.auth); });
@@ -1167,28 +1181,29 @@ setTimeout(() => {
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && ov.classList.contains('open')) close(); });
   tabs.forEach(t => t.addEventListener('click', () => setMode(t.dataset.mode)));
 
-  function showMsg(text, kind, extra) {
+  function showMsg(text, kind) {
     if (!msg) return;
     msg.textContent = text;
     msg.className = 'auth-msg ' + (kind || '');
-    if (extra) { const s = document.createElement('span'); s.innerHTML = extra; msg.appendChild(s); }
   }
   function showResend(email) {
-    showMsg('Email not confirmed. ', 'err',
-      `<a href="#" style="color:#fda4af;text-decoration:underline" id="resend-link">Resend confirmation email</a>`);
-    setTimeout(() => {
-      const lnk = document.getElementById('resend-link');
-      if (!lnk) return;
-      lnk.addEventListener('click', async e => {
-        e.preventDefault(); lnk.textContent = 'Sending…';
-        try {
-          await TTAuth.resendConfirmation(email);
-          showMsg('Confirmation email sent! Check your inbox.', 'ok');
-        } catch (err) {
-          showMsg(err.message || 'Could not resend.', 'err');
-        }
-      });
-    }, 50);
+    if (!msg) return;
+    msg.className = 'auth-msg err';
+    msg.textContent = 'Email not confirmed. ';
+    const lnk = document.createElement('a');
+    lnk.href = '#';
+    lnk.style.cssText = 'color:#fda4af;text-decoration:underline';
+    lnk.textContent = 'Resend confirmation email';
+    lnk.addEventListener('click', async e => {
+      e.preventDefault(); lnk.textContent = 'Sending…';
+      try {
+        await TTAuth.resendConfirmation(email);
+        showMsg('Confirmation email sent! Check your inbox.', 'ok');
+      } catch (err) {
+        showMsg(err.message || 'Could not resend.', 'err');
+      }
+    });
+    msg.appendChild(lnk);
   }
 
   /* Email toggle */
@@ -1205,6 +1220,7 @@ setTimeout(() => {
   /* Google OAuth */
   const gbtn = document.getElementById('auth-google');
   if (gbtn) gbtn.addEventListener('click', async () => {
+    if (!checkRateLimit()) return;
     gbtn.disabled = true; showMsg('Redirecting to Google…', '');
     try {
       await TTAuth.signInWithGoogle('index.html');
@@ -1216,6 +1232,7 @@ setTimeout(() => {
   /* Sign up */
   document.getElementById('form-signup').addEventListener('submit', async e => {
     e.preventDefault();
+    if (!checkRateLimit()) return;
     const f = e.target;
     const data = {
       firstName: f.firstName.value.trim(),
@@ -1239,6 +1256,7 @@ setTimeout(() => {
   /* Sign in */
   document.getElementById('form-signin').addEventListener('submit', async e => {
     e.preventDefault();
+    if (!checkRateLimit()) return;
     const f = e.target;
     const email = f.email.value.trim(), password = f.password.value;
     if (!/^\S+@\S+\.\S+$/.test(email)) return showMsg('Please enter a valid email address.', 'err');

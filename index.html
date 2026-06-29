@@ -2347,7 +2347,7 @@ async function loadAITips() {
     slot.innerHTML = tips.map((t,i)=>`
       <div class="insight" style="border-left-color:#c084fc;animation:fcFade 0.3s ease ${i*60}ms both">
         <div class="insight-marker" style="background:#c084fc18;border-color:#c084fc35;color:#c084fc">AI</div>
-        <span class="insight-text"><strong style="color:#fff">${t.title||'Tip'}</strong> — ${t.body||''}</span>
+        <span class="insight-text"><strong style="color:#fff">${esc(t.title||'Tip')}</strong> — ${esc(t.body||'')}</span>
       </div>`).join('');
   } catch (e) { slot.innerHTML = ''; }
 }
@@ -2506,13 +2506,13 @@ async function doGrade() {
     if(typeof r.totalEarned!=='number'||typeof r.percentage!=='number') throw new Error('The marker returned an unexpected response — try again.');
     const pct=r.percentage,col=cv(pct);
     document.getElementById('g-result').innerHTML=`<div class="glass" style="padding:1.5rem"><div class="shimmer"></div>
-      <div class="r-header"><div><span class="r-score" style="color:${col};text-shadow:0 0 20px ${col}40">${r.totalEarned}/${r.totalAvailable}</span><span class="r-pct">${pct?.toFixed(1)}%</span></div>${pill(r.grade?.toLowerCase()||'fail')}</div>
-      ${(r.items||[]).map(it=>{const pc=it.available>0?(it.awarded/it.available)*100:0;return`<div class="r-item"><div><div class="r-crit">${it.criterion}</div><div class="r-comment">${it.comment}</div></div><span class="r-item-score" style="color:${cv(pc)}">${it.awarded}/${it.available}</span></div>`;}).join('')}
-      ${r.summary?`<div class="r-summary">${r.summary}</div>`:''}
-      ${r.fixes?.length?`<div class="r-fixes-t">Priority Fixes</div>${r.fixes.map(f=>`<div class="r-fix"><span class="r-fix-arr">&#8594;</span><span class="r-fix-txt">${f}</span></div>`).join('')}`:''}</div>`;
+      <div class="r-header"><div><span class="r-score" style="color:${col};text-shadow:0 0 20px ${col}40">${esc(String(r.totalEarned))}/${esc(String(r.totalAvailable))}</span><span class="r-pct">${pct?.toFixed(1)}%</span></div>${pill(esc(r.grade?.toLowerCase()||'fail'))}</div>
+      ${(r.items||[]).map(it=>{const pc=it.available>0?(it.awarded/it.available)*100:0;return`<div class="r-item"><div><div class="r-crit">${esc(it.criterion||'')}</div><div class="r-comment">${esc(it.comment||'')}</div></div><span class="r-item-score" style="color:${cv(pc)}">${esc(String(it.awarded))}/${esc(String(it.available))}</span></div>`;}).join('')}
+      ${r.summary?`<div class="r-summary">${esc(r.summary)}</div>`:''}
+      ${r.fixes?.length?`<div class="r-fixes-t">Priority Fixes</div>${r.fixes.map(f=>`<div class="r-fix"><span class="r-fix-arr">&#8594;</span><span class="r-fix-txt">${esc(f)}</span></div>`).join('')}`:''}</div>`;
   }catch(e){
     errEl.textContent='Grading error: '+e.message;errEl.style.display='block';
-    document.getElementById('g-result').innerHTML=`<div class="glass r-empty"><div class="shimmer"></div><span class="r-empty-t">Grading failed</span><span class="r-empty-s">${e.message}</span></div>`;
+    document.getElementById('g-result').innerHTML=`<div class="glass r-empty"><div class="shimmer"></div><span class="r-empty-t">Grading failed</span><span class="r-empty-s">${esc(e.message)}</span></div>`;
   }
   btn.disabled=false;btn.textContent='Grade Answer';
 }

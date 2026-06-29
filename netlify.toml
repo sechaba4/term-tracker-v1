@@ -15,7 +15,23 @@
   for = "/*"
   [headers.values]
     X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+    Content-Security-Policy = """
+      default-src 'self';
+      script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline';
+      style-src 'self' https://fonts.googleapis.com 'unsafe-inline';
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data: blob:;
+      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://integrate.api.nvidia.com https://accounts.google.com;
+      frame-src https://accounts.google.com;
+      frame-ancestors 'none';
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self';
+    """
 
 [[headers]]
   for = "/assets/*"
