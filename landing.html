@@ -1167,7 +1167,29 @@ setTimeout(() => {
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && ov.classList.contains('open')) close(); });
   tabs.forEach(t => t.addEventListener('click', () => setMode(t.dataset.mode)));
 
-  function showMsg(text, kind) { if (!msg) return; msg.textContent = text; msg.className = 'auth-msg ' + (kind || ''); }
+  function showMsg(text, kind, extra) {
+    if (!msg) return;
+    msg.textContent = text;
+    msg.className = 'auth-msg ' + (kind || '');
+    if (extra) { const s = document.createElement('span'); s.innerHTML = extra; msg.appendChild(s); }
+  }
+  function showResend(email) {
+    showMsg('Email not confirmed. ', 'err',
+      `<a href="#" style="color:#fda4af;text-decoration:underline" id="resend-link">Resend confirmation email</a>`);
+    setTimeout(() => {
+      const lnk = document.getElementById('resend-link');
+      if (!lnk) return;
+      lnk.addEventListener('click', async e => {
+        e.preventDefault(); lnk.textContent = 'Sending…';
+        try {
+          await TTAuth.resendConfirmation(email);
+          showMsg('Confirmation email sent! Check your inbox.', 'ok');
+        } catch (err) {
+          showMsg(err.message || 'Could not resend.', 'err');
+        }
+      });
+    }, 50);
+  }
 
   /* Email toggle */
   const emailToggle = document.getElementById('auth-email-toggle');
@@ -1227,7 +1249,10 @@ setTimeout(() => {
       showMsg('Welcome back! Loading your dashboard…', 'ok');
       setTimeout(() => { location.href = 'index.html'; }, 600);
     } catch (err) {
-      btn.disabled = false; showMsg(err.message || 'Could not sign in.', 'err');
+      btn.disabled = false;
+      const msg = err.message || 'Could not sign in.';
+      if (msg.toLowerCase().includes('confirmed')) { showResend(email); }
+      else { showMsg(msg, 'err'); }
     }
   });
 

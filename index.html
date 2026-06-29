@@ -3209,9 +3209,16 @@ function switchTab(tab) {
 
   loadBackgroundSettings();
 
-  // Wait for the auth layer, then require a signed-in user.
+  // Wait for the auth layer to boot (handles OAuth hash tokens too).
   try { if (window.TTAuth && TTAuth.ready) await TTAuth.ready; } catch(e) {}
-  const user = (window.TTAuth ? TTAuth.currentUser() : null);
+  let user = (window.TTAuth ? TTAuth.currentUser() : null);
+
+  // After a Google OAuth redirect, onAuthStateChange may not have fired yet.
+  // Ask Supabase directly for the live session and cache it if found.
+  if (!user && window.TTAuth) {
+    try { user = await TTAuth.getSessionUser(); } catch(e) {}
+  }
+
   if (!user) { location.replace('landing.html'); return; }
 
   // Pull this account's saved profile.

@@ -133,16 +133,31 @@ let TT_AI_ENABLED = false;  // set true once the config function reports an AI k
         email, password,
         options: { data: { firstName: sanitizeText(firstName, 100), lastName: sanitizeText(lastName, 100) } },
       });
-      if (error) throw new Error(error.message);
+      if (error) {
+        const msg = error.message || '';
+        if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('user already'))
+          throw new Error('An account with that email already exists. Try signing in instead.');
+        throw new Error(msg);
+      }
       const user = data.user;
-      if (!user) throw new Error('Check your email to confirm your account, then sign in.');
+      // Supabase returns a user even when email confirmation is required —
+      // identities being empty means the email is unconfirmed (existing unconfirmed account).
+      if (!user || (Array.isArray(user.identities) && user.identities.length === 0))
+        throw new Error('A confirmation email has been sent to ' + email + '. Please check your inbox and click the link to activate your account.');
       const u = { id: user.id, email, firstName, lastName };
       setCurrent(summary(u));
       return summary(u);
     },
     async signIn(email, password) {
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) throw new Error(error.message);
+      if (error) {
+        const msg = error.message || '';
+        if (msg.toLowerCase().includes('email not confirmed'))
+          throw new Error('Your email address hasn\'t been confirmed yet. Check your inbox for the confirmation email, or contact support.');
+        if (msg.toLowerCase().includes('invalid login'))
+          throw new Error('Incorrect email or password. Please try again.');
+        throw new Error(msg);
+      }
       const n = namesFromMeta(data.user.user_metadata, data.user.email);
       const u = { id: data.user.id, email: data.user.email, firstName: n.first, lastName: n.last };
       setCurrent(summary(u));
@@ -336,8 +351,32 @@ let TT_AI_ENABLED = false;  // set true once the config function reports an AI k
       if (mode !== 'cloud' || !sb) {
         throw new Error('Google sign-in needs cloud mode — add your Supabase keys in tt-core.js to enable it.');
       }
-      const redirectTo = new URL(redirect || 'index.html', location.href).href;
-      const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+      // Build an absolute redirect URL. On GitHub Pages the path includes the repo
+      // subpath; on Netlify it's the root. new URL handles both correctly.
+      const base = location.origin + location.pathname.replace(/[^/]*$/, '');
+      const redirectTo = new URL(redirect || 'index.html', base).href;
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo, skipBrowserRedirect: false },
+      });
+      if (error) throw new Error(error.message);
+    },
+    /** Returns the live Supabase session user (null in local mode). Useful after OAuth redirects. */
+    async getSessionUser() {
+      if (mode !== 'cloud' || !sb) return null;
+      try {
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session || !session.user) return null;
+        const n = namesFromMeta(session.user.user_metadata, session.user.email);
+        const u = { id: session.user.id, email: session.user.email, firstName: n.first, lastName: n.last };
+        setCurrent(summary(u));
+        return summary(u);
+      } catch (e) { return null; }
+    },
+    /** Resend the confirmation email. */
+    async resendConfirmation(email) {
+      if (mode !== 'cloud' || !sb) throw new Error('Cloud mode required.');
+      const { error } = await sb.auth.resend({ type: 'signup', email });
       if (error) throw new Error(error.message);
     },
     /** Redirect to the landing page if nobody is signed in. Returns the user or null. */
