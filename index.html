@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#000000">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23050505'/%3E%3Crect x='2.5' y='2.5' width='27' height='27' rx='5.5' fill='none' stroke='rgba(255,255,255,0.22)'/%3E%3Ctext x='16' y='21' font-family='monospace' font-size='11' font-weight='800' fill='%23fff' text-anchor='middle'%3ETT%3C/text%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -994,10 +994,10 @@ button, [onclick]:not(input):not(select):not(textarea) { cursor: pointer; }
 <div class="main" id="main"></div>
 
 <!-- Term Tracker core: auth + memory (Supabase-ready, localStorage fallback) -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2/dist/umd/supabase.js" integrity="sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p" crossorigin="anonymous"></script>
 <script src="tt-core.js"></script>
 <!-- pdf.js for on-device syllabus/learner-guide parsing -->
-<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous"></script>
 <script>
   if (window.pdfjsLib) {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
@@ -1115,8 +1115,10 @@ async function hydrateFromAccount() {
 }
 
 function resetAllData() {
-  if (!confirm('This will clear all your marks and settings. Are you sure?')) return;
-  localStorage.removeItem(LS_KEY);
+  if (!confirm('This will clear all your marks, progress and settings. Are you sure?')) return;
+  ['tt_profile_v3','cta_sched_v2','ujCTAProgress_v2','dashboardBgSettings'].forEach(k => {
+    try { localStorage.removeItem(k); } catch(e) {}
+  });
   MODS = []; USER_SETTINGS = { name:'', program:'My Program', institution:'', examDate:'', year:'', isSetup:false, hasExamData:false };
   try { if (window.TTStore) TTStore.saveProfile({ isSetup:false, modules:[], settings:USER_SETTINGS }); } catch(e) {}
   showOnboarding();
@@ -2392,10 +2394,10 @@ function renderFlashcards() {
       <div style="max-width:560px;margin:0 auto">
         <div class="fc-card" onclick="fcFlip()" style="border-left:4px solid ${c.color}">
           <div class="shimmer"></div>
-          <span class="fc-mod" style="color:${c.color}">${c.module} · AI</span>
+          <span class="fc-mod" style="color:${c.color}">${esc(c.module)} · AI</span>
           ${!fcFlipped ? `
-            <div class="fc-face"><div class="fc-q" style="font-size:1.2rem">${card.front||''}</div><div class="fc-hint">Tap to reveal the answer</div></div>` : `
-            <div class="fc-face"><div class="fc-a-l">Answer</div><div class="fc-a">${card.back||''}</div></div>`}
+            <div class="fc-face"><div class="fc-q" style="font-size:1.2rem">${esc(card.front||'')}</div><div class="fc-hint">Tap to reveal the answer</div></div>` : `
+            <div class="fc-face"><div class="fc-a-l">Answer</div><div class="fc-a">${esc(card.back||'')}</div></div>`}
         </div>
         <div style="display:flex;gap:0.6rem;margin-top:1rem;justify-content:center;flex-wrap:wrap">
           <button class="fc-btn" onclick="fcAIPrev()">← Prev</button>
@@ -2415,15 +2417,15 @@ function renderFlashcards() {
     <div style="max-width:560px;margin:0 auto">
       <div class="fc-card" onclick="fcFlip()" style="border-left:4px solid ${c.color}">
         <div class="shimmer"></div>
-        <span class="fc-mod" style="color:${c.color}">${c.module}</span>
+        <span class="fc-mod" style="color:${c.color}">${esc(c.module)}</span>
         ${!fcFlipped ? `
           <div class="fc-face">
-            <div class="fc-q">${c.topic}</div>
+            <div class="fc-q">${esc(c.topic)}</div>
             <div class="fc-hint">Recall everything you can — definitions, the method, common traps — then tap to flip</div>
           </div>` : `
           <div class="fc-face">
             <div class="fc-a-l">Self-check</div>
-            <div class="fc-a">Did you cover the <strong>definition</strong>, the <strong>step-by-step method</strong>, a <strong>worked example</strong>, and the <strong>common mistakes</strong> for "${c.topic}"? Anything you missed is exactly what to revise next.</div>
+            <div class="fc-a">Did you cover the <strong>definition</strong>, the <strong>step-by-step method</strong>, a <strong>worked example</strong>, and the <strong>common mistakes</strong> for &ldquo;${esc(c.topic)}&rdquo;? Anything you missed is exactly what to revise next.</div>
           </div>`}
       </div>
       <div style="display:flex;gap:0.6rem;margin-top:1rem;justify-content:center;flex-wrap:wrap">
